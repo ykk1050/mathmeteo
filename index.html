@@ -1,0 +1,1984 @@
+<!doctype html>
+<html lang="ko">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Division Quest</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/_sdk/element_sdk.js"></script>
+  <style>
+        body {
+            box-sizing: border-box;
+        }
+        .game-canvas {
+            image-rendering: pixelated;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+        }
+    </style>
+  <style>@view-transition { navigation: auto; }</style>
+  <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+ </head>
+ <body>
+  <div id="root"></div>
+  <script type="text/babel">
+        const { useState, useEffect, useRef, useCallback } = React;
+
+        // Firebase 초기화 및 관리 훅
+        const useFirebase = () => {
+            const [firebase, setFirebase] = useState(null);
+            const [user, setUser] = useState(null);
+            const [isInitialized, setIsInitialized] = useState(false);
+
+            useEffect(() => {
+                const initFirebase = async () => {
+                    try {
+                        // Firebase 모듈 동적 로드
+                        const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js');
+                        const { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js');
+                        const { getFirestore, doc, setDoc, getDoc, updateDoc } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+
+                        // 캔버스 환경 변수 사용
+                        const appId = window.__app_id || 'division-quest-default';
+                        const firebaseConfig = window.__firebase_config || {
+                            apiKey: "demo-key",
+                            authDomain: "demo.firebaseapp.com",
+                            projectId: "demo-project",
+                            storageBucket: "demo.appspot.com",
+                            messagingSenderId: "123456789",
+                            appId: appId
+                        };
+
+                        const app = initializeApp(firebaseConfig);
+                        const auth = getAuth(app);
+                        const firestore = getFirestore(app);
+
+                        setFirebase({ 
+                            appId, 
+                            auth, 
+                            firestore, 
+                            doc, 
+                            setDoc, 
+                            getDoc, 
+                            updateDoc,
+                            signInAnonymously,
+                            signInWithCustomToken
+                        });
+
+                        // 인증 처리
+                        const initialAuthToken = window.__initial_auth_token;
+                        if (initialAuthToken) {
+                            // 커스텀 토큰으로 로그인
+                            await signInWithCustomToken(auth, initialAuthToken);
+                        } else {
+                            // 익명 로그인
+                            await signInAnonymously(auth);
+                        }
+
+                        onAuthStateChanged(auth, (user) => {
+                            if (user) {
+                                setUser(user);
+                                setIsInitialized(true);
+                            }
+                        });
+
+                    } catch (error) {
+                        console.error('Firebase 초기화 실패:', error);
+                        setIsInitialized(true); // 오프라인 모드로 계속 진행
+                    }
+                };
+
+                initFirebase();
+            }, []);
+
+            return { firebase, user, isInitialized };
+        };
+
+        // Web Audio 관리 훅
+        const useAudio = () => {
+            const audioContextRef = useRef(null);
+            const bgmOscillatorRef = useRef(null);
+            const [audioInitialized, setAudioInitialized] = useState(false);
+            const [isBGMPlaying, setIsBGMPlaying] = useState(false);
+
+            const initializeAudio = useCallback(() => {
+                if (audioInitialized) return;
+                
+                try {
+                    audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+                    setAudioInitialized(true);
+                } catch (error) {
+                    console.error('Audio Context 초기화 실패:', error);
+                }
+            }, [audioInitialized]);
+
+            const playBGM = useCallback(async () => {
+                if (!audioContextRef.current || isBGMPlaying) return;
+
+                try {
+                    if (audioContextRef.current.state === 'suspended') {
+                        await audioContextRef.current.resume();
+                    }
+
+                    setIsBGMPlaying(true);
+
+                    const notes = [261.63, 329.63, 392.00, 523.25]; // C4, E4, G4, C5
+                    let noteIndex = 0;
+                    const noteDuration = 1.2;
+
+                    const playNote = () => {
+                        if (!audioContextRef.current || !isBGMPlaying) return;
+
+                        const oscillator = audioContextRef.current.createOscillator();
+                        const gainNode = audioContextRef.current.createGain();
+                        
+                        oscillator.connect(gainNode);
+                        gainNode.connect(audioContextRef.current.destination);
+                        
+                        oscillator.frequency.setValueAtTime(notes[noteIndex], audioContextRef.current.currentTime);
+                        oscillator.type = 'sine';
+                        
+                        gainNode.gain.setValueAtTime(0, audioContextRef.current.currentTime);
+                        gainNode.gain.linearRampToValueAtTime(0.03, audioContextRef.current.currentTime + 0.1);
+                        gainNode.gain.linearRampToValueAtTime(0.03, audioContextRef.current.currentTime + noteDuration - 0.1);
+                        gainNode.gain.linearRampToValueAtTime(0, audioContextRef.current.currentTime + noteDuration);
+                        
+                        oscillator.start(audioContextRef.current.currentTime);
+                        oscillator.stop(audioContextRef.current.currentTime + noteDuration);
+                        
+                        noteIndex = (noteIndex + 1) % notes.length;
+                        
+                        setTimeout(() => {
+                            if (isBGMPlaying) {
+                                playNote();
+                            }
+                        }, noteDuration * 1000);
+                    };
+
+                    playNote();
+                    
+                } catch (error) {
+                    console.error('BGM 재생 실패:', error);
+                }
+            }, [isBGMPlaying]);
+
+            const stopBGM = useCallback(() => {
+                setIsBGMPlaying(false);
+                if (bgmOscillatorRef.current) {
+                    try {
+                        bgmOscillatorRef.current.stop();
+                        bgmOscillatorRef.current = null;
+                    } catch (error) {
+                        console.error('BGM 정지 실패:', error);
+                    }
+                }
+            }, []);
+
+            const playSound = useCallback((type) => {
+                if (!audioContextRef.current) return;
+
+                try {
+                    const oscillator = audioContextRef.current.createOscillator();
+                    const gainNode = audioContextRef.current.createGain();
+                    
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioContextRef.current.destination);
+                    
+                    switch (type) {
+                        case 'explosion':
+                            oscillator.frequency.setValueAtTime(150, audioContextRef.current.currentTime);
+                            oscillator.frequency.exponentialRampToValueAtTime(50, audioContextRef.current.currentTime + 0.5);
+                            gainNode.gain.setValueAtTime(0.2, audioContextRef.current.currentTime);
+                            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + 0.5);
+                            oscillator.start();
+                            oscillator.stop(audioContextRef.current.currentTime + 0.5);
+                            break;
+                        case 'gem':
+                            oscillator.frequency.setValueAtTime(800, audioContextRef.current.currentTime);
+                            oscillator.frequency.exponentialRampToValueAtTime(1200, audioContextRef.current.currentTime + 0.2);
+                            gainNode.gain.setValueAtTime(0.1, audioContextRef.current.currentTime);
+                            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + 0.2);
+                            oscillator.start();
+                            oscillator.stop(audioContextRef.current.currentTime + 0.2);
+                            break;
+                        case 'correct':
+                            oscillator.frequency.setValueAtTime(523.25, audioContextRef.current.currentTime);
+                            oscillator.frequency.setValueAtTime(659.25, audioContextRef.current.currentTime + 0.1);
+                            gainNode.gain.setValueAtTime(0.1, audioContextRef.current.currentTime);
+                            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + 0.3);
+                            oscillator.start();
+                            oscillator.stop(audioContextRef.current.currentTime + 0.3);
+                            break;
+                    }
+                } catch (error) {
+                    console.error('효과음 재생 실패:', error);
+                }
+            }, []);
+
+            return { initializeAudio, playBGM, stopBGM, playSound, audioInitialized };
+        };
+
+        // 메테오 게임 컴포넌트
+        const MeteorGameHard = ({ skills, onGameEnd, onScoreUpdate, onCoinsUpdate }) => {
+            const canvasRef = useRef(null);
+            const gameLoopRef = useRef(null);
+            const keysRef = useRef({ left: false, right: false });
+            const [gameStats, setGameStats] = useState({
+                level: 1,
+                score: 0,
+                lives: 1,
+                timeLeft: 20
+            });
+            const [isRunning, setIsRunning] = useState(false);
+            const runningRef = useRef(false);
+            const [levelUpNotification, setLevelUpNotification] = useState({ isVisible: false, level: 0, animationPhase: 'enter' });
+            
+            // 게임 객체들
+            const gameObjectsRef = useRef({
+                player: { x: 185, y: 450, width: 30, height: 30 },
+                meteors: [],
+                gems: [],
+                hearts: [],
+                shields: [],
+                stars: []
+            });
+
+            const gameTimersRef = useRef({
+                meteorTimer: 0,
+                gemTimer: 0,
+                heartTimer: 0,
+                shieldTimer: 0,
+                levelTimer: 0,
+                survivalTimer: 0,
+                lastTime: 0
+            });
+
+            const playerEffectsRef = useRef({
+                hitInvincible: false,
+                hitInvincibleTime: 0,
+                shieldInvincible: false,
+                shieldInvincibleTime: 0
+            });
+
+            const { playSound } = useAudio();
+
+            // 게임 시작
+            const startGame = useCallback(() => {
+                setIsRunning(true);
+                runningRef.current = true;
+                
+                const initialStats = {
+                    level: 1,
+                    score: 0,
+                    lives: 2 + skills.extraLife, // 기본 생명 2개
+                    timeLeft: 20
+                };
+                setGameStats(initialStats);
+
+                // 게임 객체 초기화
+                gameObjectsRef.current = {
+                    player: { x: 185, y: 450, width: 30, height: 30 },
+                    meteors: [],
+                    gems: [],
+                    hearts: [],
+                    shields: [],
+                    stars: Array.from({ length: 50 }, () => ({
+                        x: Math.random() * 400,
+                        y: Math.random() * 500,
+                        size: Math.random() * 2 + 1
+                    }))
+                };
+
+                gameTimersRef.current = {
+                    meteorTimer: 0,
+                    gemTimer: 0,
+                    heartTimer: 0,
+                    shieldTimer: 0,
+                    levelTimer: 0,
+                    survivalTimer: 0,
+                    lastTime: performance.now()
+                };
+
+                playerEffectsRef.current = {
+                    hitInvincible: false,
+                    hitInvincibleTime: 0,
+                    shieldInvincible: false,
+                    shieldInvincibleTime: 0
+                };
+
+                // Canvas 설정
+                const canvas = canvasRef.current;
+                if (canvas) {
+                    canvas.width = 400;
+                    canvas.height = 500;
+                }
+
+                // 게임 루프 시작
+                requestAnimationFrame(gameLoop);
+            }, [skills.extraLife]);
+
+            // 게임 루프
+            const gameLoop = useCallback((currentTime) => {
+                if (!runningRef.current) return;
+
+                const canvas = canvasRef.current;
+                if (!canvas) return;
+
+                const ctx = canvas.getContext('2d');
+                const deltaTime = currentTime - gameTimersRef.current.lastTime;
+                gameTimersRef.current.lastTime = currentTime;
+
+                updateGame(deltaTime);
+                drawGame(ctx);
+
+                gameLoopRef.current = requestAnimationFrame(gameLoop);
+            }, []);
+
+            // 게임 로직 업데이트
+            const updateGame = useCallback((deltaTime) => {
+                // 무적 효과 업데이트
+                if (playerEffectsRef.current.hitInvincible && playerEffectsRef.current.hitInvincibleTime > 0) {
+                    playerEffectsRef.current.hitInvincibleTime -= deltaTime;
+                    if (playerEffectsRef.current.hitInvincibleTime <= 0) {
+                        playerEffectsRef.current.hitInvincible = false;
+                        playerEffectsRef.current.hitInvincibleTime = 0;
+                    }
+                }
+                
+                if (playerEffectsRef.current.shieldInvincible && playerEffectsRef.current.shieldInvincibleTime > 0) {
+                    playerEffectsRef.current.shieldInvincibleTime -= deltaTime;
+                    if (playerEffectsRef.current.shieldInvincibleTime <= 0) {
+                        playerEffectsRef.current.shieldInvincible = false;
+                        playerEffectsRef.current.shieldInvincibleTime = 0;
+                    }
+                }
+
+                // 생존 점수 업데이트 (1초마다 1점)
+                gameTimersRef.current.survivalTimer += deltaTime;
+                if (gameTimersRef.current.survivalTimer >= 1000) {
+                    gameTimersRef.current.survivalTimer -= 1000;
+                    setGameStats(prev => ({ ...prev, score: prev.score + 1 }));
+                    onScoreUpdate(1);
+                }
+
+                // 레벨 타이머 업데이트 (더 빠른 레벨업)
+                gameTimersRef.current.levelTimer += deltaTime;
+                const levelDuration = Math.max(12000, 20000 - gameStats.level * 800); // 레벨당 시간 단축
+                const timeLeft = Math.max(0, levelDuration - gameTimersRef.current.levelTimer);
+                
+                setGameStats(prev => {
+                    const newStats = { ...prev, timeLeft: Math.ceil(timeLeft / 1000) };
+                    
+                    if (timeLeft <= 0) {
+                        gameTimersRef.current.levelTimer = 0;
+                        newStats.level = prev.level + 1;
+                        const nextLevelDuration = Math.max(12000, 20000 - newStats.level * 800);
+                        newStats.timeLeft = Math.ceil(nextLevelDuration / 1000);
+                        
+                        // 레벨업 알림 표시
+                        setLevelUpNotification({ 
+                            isVisible: true, 
+                            level: newStats.level, 
+                            animationPhase: 'enter' 
+                        });
+                        
+                        // 2.5초 후 사라지는 애니메이션 시작
+                        setTimeout(() => {
+                            setLevelUpNotification(prev => ({ 
+                                ...prev, 
+                                animationPhase: 'exit' 
+                            }));
+                        }, 2200);
+                        
+                        // 3초 후 완전히 제거
+                        setTimeout(() => {
+                            setLevelUpNotification({ isVisible: false, level: 0, animationPhase: 'enter' });
+                        }, 2500);
+                    }
+                    
+                    return newStats;
+                });
+
+                // 플레이어 이동
+                const speed = 5 * (1 + skills.speedBoots * 0.15);
+                if (keysRef.current.left && gameObjectsRef.current.player.x > 0) {
+                    gameObjectsRef.current.player.x -= speed;
+                }
+                if (keysRef.current.right && gameObjectsRef.current.player.x < 370) {
+                    gameObjectsRef.current.player.x += speed;
+                }
+
+                // 메테오 생성
+                gameTimersRef.current.meteorTimer += deltaTime;
+                
+                // 더 가파른 난이도 증가 - 생성 빈도 (더 빠르게 생성)
+                const meteorFreqArray = [200, 160, 120, 90, 70, 55, 45, 38, 32, 28];
+                let meteorFreq;
+                if (gameStats.level <= meteorFreqArray.length) {
+                    meteorFreq = meteorFreqArray[gameStats.level - 1];
+                } else {
+                    // 10레벨 이후 계속 감소 (최소 5ms까지)
+                    const extraLevels = gameStats.level - meteorFreqArray.length;
+                    meteorFreq = Math.max(5, 28 - extraLevels * 2);
+                }
+                
+                if (gameTimersRef.current.meteorTimer > meteorFreq) {
+                    gameTimersRef.current.meteorTimer = 0;
+                    
+                    // 더 가파른 생성확률 증가 (레벨 1~10, 이후 계속 증가)
+                    const densityArray = [1.2, 1.8, 2.5, 3.2, 4.0, 4.8, 5.6, 6.4, 7.2, 8.0];
+                    let baseDensity;
+                    if (gameStats.level <= densityArray.length) {
+                        baseDensity = densityArray[gameStats.level - 1];
+                    } else {
+                        // 10레벨 이후 계속 증가 (최대 15.0까지)
+                        const extraLevels = gameStats.level - densityArray.length;
+                        baseDensity = Math.min(15.0, 8.0 + extraLevels * 0.5);
+                    }
+                    const density = Math.max(0.2, baseDensity - skills.meteorSuppressor * 0.09);
+                    
+                    if (Math.random() < density) {
+                        let meteorCount = 1;
+                        
+                        // 더 공격적인 동시생성 확률 (10레벨 이후에도 계속 증가)
+                        if (gameStats.level >= 2 && Math.random() < 0.5) meteorCount = 2;
+                        if (gameStats.level >= 3 && Math.random() < 0.6) meteorCount = 3;
+                        if (gameStats.level >= 4 && Math.random() < 0.5) meteorCount = 4;
+                        if (gameStats.level >= 5 && Math.random() < 0.4) meteorCount = 5;
+                        if (gameStats.level >= 6 && Math.random() < 0.3) meteorCount = 6;
+                        if (gameStats.level >= 7 && Math.random() < 0.25) meteorCount = 7;
+                        if (gameStats.level >= 8 && Math.random() < 0.2) meteorCount = 8;
+                        if (gameStats.level >= 9 && Math.random() < 0.18) meteorCount = 9;
+                        if (gameStats.level >= 10 && Math.random() < 0.16) meteorCount = 10;
+                        if (gameStats.level >= 11 && Math.random() < 0.15) meteorCount = 11;
+                        if (gameStats.level >= 12 && Math.random() < 0.14) meteorCount = 12;
+                        if (gameStats.level >= 13 && Math.random() < 0.13) meteorCount = Math.min(15, 13);
+                        if (gameStats.level >= 15 && Math.random() < 0.12) meteorCount = Math.min(20, gameStats.level);
+                        
+                        for (let i = 0; i < meteorCount; i++) {
+                            // 더 가파른 낙하속도 증가 (레벨 1~10, 이후 계속 증가)
+                            const speedArray = [5.0, 8.5, 12.5, 17.0, 22.0, 27.5, 33.5, 40.0, 47.0, 55.0];
+                            let baseSpeed;
+                            if (gameStats.level <= speedArray.length) {
+                                baseSpeed = speedArray[gameStats.level - 1];
+                            } else {
+                                // 10레벨 이후 계속 증가 (최대 100.0까지)
+                                const extraLevels = gameStats.level - speedArray.length;
+                                baseSpeed = Math.min(100.0, 55.0 + extraLevels * 3.0);
+                            }
+                            const finalSpeed = Math.max(1, baseSpeed * Math.max(0.3, 1 - skills.slowField * 0.07));
+                            
+                            gameObjectsRef.current.meteors.push({
+                                x: Math.random() * 370,
+                                y: -30 - (i * 50),
+                                speed: finalSpeed
+                            });
+                        }
+                    }
+                }
+
+                // 보석 생성
+                gameTimersRef.current.gemTimer += deltaTime;
+                if (gameTimersRef.current.gemTimer > 3000) {
+                    gameTimersRef.current.gemTimer = 0;
+                    const gemChance = 0.3 + skills.gemAmplifier * 0.05;
+                    if (Math.random() < gemChance) {
+                        gameObjectsRef.current.gems.push({
+                            x: Math.random() * 370,
+                            y: -30,
+                            speed: 1.5
+                        });
+                    }
+                }
+
+                // 하트 생성 (생명 회복)
+                gameTimersRef.current.heartTimer += deltaTime;
+                if (gameTimersRef.current.heartTimer > 8000) { // 8초마다 체크
+                    gameTimersRef.current.heartTimer = 0;
+                    if (Math.random() < 0.25) { // 25% 확률
+                        gameObjectsRef.current.hearts.push({
+                            x: Math.random() * 370,
+                            y: -30,
+                            speed: 1.2
+                        });
+                    }
+                }
+
+                // 무적 실드 생성
+                gameTimersRef.current.shieldTimer += deltaTime;
+                if (gameTimersRef.current.shieldTimer > 10000) { // 10초마다 체크
+                    gameTimersRef.current.shieldTimer = 0;
+                    if (Math.random() < 0.35) { // 35% 확률
+                        gameObjectsRef.current.shields.push({
+                            x: Math.random() * 370,
+                            y: -30,
+                            speed: 1.3
+                        });
+                    }
+                }
+
+                // 메테오 업데이트 및 충돌 검사
+                gameObjectsRef.current.meteors = gameObjectsRef.current.meteors.filter(meteor => {
+                    meteor.y += meteor.speed;
+
+                    // 충돌 검사 (무적 상태가 아닐 때만)
+                    if (!playerEffectsRef.current.hitInvincible && !playerEffectsRef.current.shieldInvincible) {
+                        const hitboxSize = skills.smallHitbox ? 18 : 30;
+                        const playerCenterX = gameObjectsRef.current.player.x + 15;
+                        const playerCenterY = gameObjectsRef.current.player.y + 15;
+                        
+                        if (meteor.x < playerCenterX + hitboxSize/2 && 
+                            meteor.x + 30 > playerCenterX - hitboxSize/2 &&
+                            meteor.y < playerCenterY + hitboxSize/2 && 
+                            meteor.y + 30 > playerCenterY - hitboxSize/2) {
+                            
+                            playSound('explosion');
+                            
+                            // 피격 후 무적 효과 활성화 (1초간)
+                            playerEffectsRef.current.hitInvincible = true;
+                            playerEffectsRef.current.hitInvincibleTime = 1000;
+                            
+                            // 생명력 감소 처리
+                            setGameStats(prev => {
+                                const newLives = prev.lives - 1;
+                                const newStats = { ...prev, lives: newLives };
+                                
+                                // 게임 오버 체크
+                                if (newLives <= 0) {
+                                    setTimeout(() => {
+                                        runningRef.current = false;
+                                        setIsRunning(false);
+                                        onGameEnd(prev.level, prev.score);
+                                    }, 100);
+                                }
+                                
+                                return newStats;
+                            });
+                            
+                            return false; // 메테오 제거
+                        }
+                    }
+
+                    return meteor.y < 500;
+                });
+
+                // 보석 업데이트 및 충돌 검사
+                gameObjectsRef.current.gems = gameObjectsRef.current.gems.filter(gem => {
+                    gem.y += gem.speed;
+
+                    // 자석 효과
+                    if (skills.gemMagnet) {
+                        const dx = gameObjectsRef.current.player.x + 15 - (gem.x + 8);
+                        const dy = gameObjectsRef.current.player.y + 15 - (gem.y + 8);
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (distance < 80) {
+                            gem.x += dx * 0.1;
+                            gem.y += dy * 0.1;
+                        }
+                    }
+
+                    // 충돌 검사
+                    if (gem.x < gameObjectsRef.current.player.x + 30 && 
+                        gem.x + 16 > gameObjectsRef.current.player.x &&
+                        gem.y < gameObjectsRef.current.player.y + 30 && 
+                        gem.y + 16 > gameObjectsRef.current.player.y) {
+                        
+                        playSound('gem');
+                        
+                        const gemScore = skills.gemScoreAmp ? 200 : 100;
+                        const gemCoins = skills.gemScoreAmp ? 4 : 2;
+                        
+                        setGameStats(prev => ({ ...prev, score: prev.score + gemScore }));
+                        onScoreUpdate(gemScore);
+                        onCoinsUpdate(gemCoins);
+                        
+                        return false;
+                    }
+
+                    return gem.y < 500;
+                });
+
+                // 하트 업데이트 및 충돌 검사
+                gameObjectsRef.current.hearts = gameObjectsRef.current.hearts.filter(heart => {
+                    heart.y += heart.speed;
+
+                    // 충돌 검사
+                    if (heart.x < gameObjectsRef.current.player.x + 30 && 
+                        heart.x + 20 > gameObjectsRef.current.player.x &&
+                        heart.y < gameObjectsRef.current.player.y + 30 && 
+                        heart.y + 20 > gameObjectsRef.current.player.y) {
+                        
+                        playSound('gem'); // 하트 획득 소리
+                        
+                        setGameStats(prev => ({ ...prev, lives: prev.lives + 1 }));
+                        
+                        return false;
+                    }
+
+                    return heart.y < 500;
+                });
+
+                // 실드 업데이트 및 충돌 검사
+                gameObjectsRef.current.shields = gameObjectsRef.current.shields.filter(shield => {
+                    shield.y += shield.speed;
+
+                    // 충돌 검사
+                    if (shield.x < gameObjectsRef.current.player.x + 30 && 
+                        shield.x + 20 > gameObjectsRef.current.player.x &&
+                        shield.y < gameObjectsRef.current.player.y + 30 && 
+                        shield.y + 20 > gameObjectsRef.current.player.y) {
+                        
+                        playSound('correct'); // 실드 획득 소리
+                        
+                        playerEffectsRef.current.shieldInvincible = true;
+                        playerEffectsRef.current.shieldInvincibleTime = 4000; // 4초간 무적
+                        
+                        return false;
+                    }
+
+                    return shield.y < 500;
+                });
+            }, [gameStats.level, skills, playSound, onGameEnd, onScoreUpdate, onCoinsUpdate]);
+
+            // 화면 그리기
+            const drawGame = useCallback((ctx) => {
+                // 배경 그리기
+                ctx.fillStyle = '#000011';
+                ctx.fillRect(0, 0, 400, 500);
+
+                // 별 그리기
+                ctx.fillStyle = 'white';
+                gameObjectsRef.current.stars.forEach(star => {
+                    ctx.beginPath();
+                    ctx.arc(star.x, star.y, star.size / 2, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+
+                // 메테오 그리기 (이모지만 사용)
+                gameObjectsRef.current.meteors.forEach(meteor => {
+                    ctx.font = '30px Arial';
+                    ctx.fillText('☄️', meteor.x, meteor.y + 25);
+                });
+
+                // 보석 그리기 (이모지만 사용)
+                gameObjectsRef.current.gems.forEach(gem => {
+                    ctx.font = '24px Arial';
+                    ctx.fillText('💎', gem.x, gem.y + 20);
+                });
+
+                // 하트 그리기
+                gameObjectsRef.current.hearts.forEach(heart => {
+                    ctx.font = '24px Arial';
+                    ctx.fillText('💖', heart.x, heart.y + 20);
+                });
+
+                // 실드 그리기
+                gameObjectsRef.current.shields.forEach(shield => {
+                    ctx.font = '24px Arial';
+                    ctx.fillText('🛡️', shield.x, shield.y + 20);
+                });
+
+                // 플레이어 그리기 (이모지만 사용)
+                const player = gameObjectsRef.current.player;
+                ctx.font = '32px Arial';
+                
+                // 실드 무적 상태일 때 특별한 효과
+                if (playerEffectsRef.current.shieldInvincible) {
+                    // 실드 배경 원형
+                    const time = Date.now() / 100;
+                    const radius = 30 + Math.sin(time) * 3;
+                    
+                    // 반투명 실드 배경
+                    ctx.fillStyle = `rgba(0, 200, 255, ${0.3 + Math.sin(time * 2) * 0.1})`;
+                    ctx.beginPath();
+                    ctx.arc(player.x + 15, player.y + 15, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // 실드 테두리 효과
+                    ctx.strokeStyle = `rgba(100, 255, 255, ${0.8 + Math.sin(time * 3) * 0.2})`;
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(player.x + 15, player.y + 15, radius, 0, Math.PI * 2);
+                    ctx.stroke();
+                    
+                    // 내부 실드 링
+                    ctx.strokeStyle = `rgba(255, 255, 255, ${0.6 + Math.sin(time * 4) * 0.2})`;
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(player.x + 15, player.y + 15, radius - 10, 0, Math.PI * 2);
+                    ctx.stroke();
+                    
+                    // 실드 이모지 오버레이
+                    ctx.font = '60px Arial';
+                    ctx.globalAlpha = 0.4 + Math.sin(time * 2) * 0.2;
+                    ctx.fillText('🛡️', player.x - 15, player.y + 35);
+                    ctx.globalAlpha = 1.0;
+                    ctx.font = '32px Arial';
+                }
+                
+                ctx.fillText('🚀', player.x, player.y + 25);
+                ctx.globalAlpha = 1.0; // 투명도 리셋
+
+                // 작은 히트박스 표시 (디버그용, 스킬 보유 시)
+                if (skills.smallHitbox) {
+                    ctx.strokeStyle = 'rgba(255, 255, 0, 0.3)';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(player.x + 6, player.y + 6, 18, 18);
+                }
+
+
+            }, [skills.smallHitbox]);
+
+            // 키보드 이벤트
+            useEffect(() => {
+                const handleKeyDown = (e) => {
+                    if (e.key === 'ArrowLeft') keysRef.current.left = true;
+                    if (e.key === 'ArrowRight') keysRef.current.right = true;
+                };
+                
+                const handleKeyUp = (e) => {
+                    if (e.key === 'ArrowLeft') keysRef.current.left = false;
+                    if (e.key === 'ArrowRight') keysRef.current.right = false;
+                };
+                
+                window.addEventListener('keydown', handleKeyDown);
+                window.addEventListener('keyup', handleKeyUp);
+                
+                return () => {
+                    window.removeEventListener('keydown', handleKeyDown);
+                    window.removeEventListener('keyup', handleKeyUp);
+                };
+            }, []);
+
+            // 컴포넌트 정리
+            useEffect(() => {
+                return () => {
+                    if (gameLoopRef.current) {
+                        cancelAnimationFrame(gameLoopRef.current);
+                    }
+                    runningRef.current = false;
+                };
+            }, []);
+
+            // 게임 시작 (마운트 시)
+            useEffect(() => {
+                startGame();
+            }, [startGame]);
+
+            return (
+                <div className="text-center">
+                    <div className="mb-4">
+                        {/* 첫 번째 줄: 레벨, 점수, 시간 */}
+                        <div className="flex justify-center gap-6 mb-2 text-lg">
+                            <span>레벨: {gameStats.level}</span>
+                            <span>점수: {gameStats.score}</span>
+                            <span>시간: {gameStats.timeLeft}s</span>
+                        </div>
+                        {/* 두 번째 줄: 생명, 실드 (고정 높이) */}
+                        <div className="flex justify-center gap-6 text-lg h-6 items-center">
+                            <span>생명: {'💖'.repeat(Math.max(0, gameStats.lives))}</span>
+                            {playerEffectsRef.current.shieldInvincible && playerEffectsRef.current.shieldInvincibleTime > 0 && (
+                                <span className="text-blue-400 font-bold">
+                                    🛡️ 실드 {Math.ceil(playerEffectsRef.current.shieldInvincibleTime / 1000)}s
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                    
+                    <div className="relative inline-block">
+                        <canvas
+                            ref={canvasRef}
+                            className="border-2 border-gray-600 rounded-lg mx-auto block game-canvas"
+                            width={400}
+                            height={500}
+                        />
+                        
+                        {/* 레벨업 알림 오버레이 */}
+                        {levelUpNotification.isVisible && (
+                            <div className={`absolute top-4 left-1/2 transform -translate-x-1/2 z-50 transition-all duration-500 ${
+                                levelUpNotification.animationPhase === 'enter' 
+                                    ? 'scale-110 opacity-100 animate-pulse' 
+                                    : 'scale-100 opacity-0'
+                            }`}>
+                                <div className="text-center">
+                                    <div className="text-2xl font-bold mb-1 animate-bounce text-yellow-300 drop-shadow-lg" style={{textShadow: '2px 2px 4px rgba(0,0,0,0.8)'}}>
+                                        🎉 레벨 {levelUpNotification.level}! 🎉
+                                    </div>
+                                    <div className="text-lg font-bold text-yellow-200 drop-shadow-lg" style={{textShadow: '2px 2px 4px rgba(0,0,0,0.8)'}}>
+                                        도달!
+                                    </div>
+                                    <div className="flex justify-center gap-1 mt-1">
+                                        <span className="text-lg animate-spin">⭐</span>
+                                        <span className="text-lg animate-pulse">✨</span>
+                                        <span className="text-lg animate-bounce">🌟</span>
+                                        <span className="text-lg animate-pulse">✨</span>
+                                        <span className="text-lg animate-spin">⭐</span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    
+                    <div className="mt-4 flex justify-center gap-6">
+                        <button 
+                            onMouseDown={() => keysRef.current.left = true}
+                            onMouseUp={() => keysRef.current.left = false}
+                            onTouchStart={(e) => {
+                                e.preventDefault();
+                                keysRef.current.left = true;
+                            }}
+                            onTouchEnd={(e) => {
+                                e.preventDefault();
+                                keysRef.current.left = false;
+                            }}
+                            className="bg-blue-600 hover:bg-blue-700 px-12 py-6 rounded-lg select-none font-bold text-xl transition-colors"
+                        >
+                            ← 왼쪽
+                        </button>
+                        <button 
+                            onMouseDown={() => keysRef.current.right = true}
+                            onMouseUp={() => keysRef.current.right = false}
+                            onTouchStart={(e) => {
+                                e.preventDefault();
+                                keysRef.current.right = true;
+                            }}
+                            onTouchEnd={(e) => {
+                                e.preventDefault();
+                                keysRef.current.right = false;
+                            }}
+                            className="bg-blue-600 hover:bg-blue-700 px-12 py-6 rounded-lg select-none font-bold text-xl transition-colors"
+                        >
+                            오른쪽 →
+                        </button>
+                    </div>
+                    <div className="text-sm text-gray-300 mt-2">
+                        키보드 화살표 키 또는 버튼으로 조작하세요
+                    </div>
+                </div>
+            );
+        };
+
+        // 메인 Division Quest 컴포넌트
+        const DivisionQuest = () => {
+            const { firebase, user, isInitialized } = useFirebase();
+            const { initializeAudio, playBGM, stopBGM, playSound } = useAudio();
+            
+            // 로컬 저장소 키
+            const STORAGE_KEYS = {
+                coins: 'divisionQuest_coins',
+                practiceStats: 'divisionQuest_practiceStats',
+                skills: 'divisionQuest_skills',
+                bestRecord: 'divisionQuest_bestRecord'
+            };
+
+            // 로컬 저장소에서 데이터 로드
+            const loadFromStorage = (key, defaultValue) => {
+                try {
+                    const saved = localStorage.getItem(key);
+                    return saved ? JSON.parse(saved) : defaultValue;
+                } catch (error) {
+                    console.error(`로컬 저장소 로드 실패 (${key}):`, error);
+                    return defaultValue;
+                }
+            };
+
+            // 로컬 저장소에 데이터 저장
+            const saveToStorage = (key, value) => {
+                try {
+                    localStorage.setItem(key, JSON.stringify(value));
+                } catch (error) {
+                    console.error(`로컬 저장소 저장 실패 (${key}):`, error);
+                }
+            };
+
+            // 상태 관리 (로컬 저장소에서 초기값 로드)
+            const [activeTab, setActiveTab] = useState('practice');
+            const [coins, setCoins] = useState(() => loadFromStorage(STORAGE_KEYS.coins, 0));
+            const [practiceStats, setPracticeStats] = useState(() => loadFromStorage(STORAGE_KEYS.practiceStats, {
+                totalProblems: 0,
+                correctAnswers: 0,
+                streak: 0
+            }));
+            const [currentProblem, setCurrentProblem] = useState(null);
+            const [userAnswer, setUserAnswer] = useState('');
+            const [skills, setSkills] = useState(() => loadFromStorage(STORAGE_KEYS.skills, {
+                speedBoots: 0,
+                slowField: 0,
+                meteorSuppressor: 0,
+                gemAmplifier: 0,
+                smallHitbox: false,
+                gemMagnet: false,
+                gemScoreAmp: false,
+                extraLife: 0
+            }));
+            const [gameState, setGameState] = useState('menu');
+            const [bestRecord, setBestRecord] = useState(() => loadFromStorage(STORAGE_KEYS.bestRecord, { level: 0, score: 0 }));
+            const [showAdminConsole, setShowAdminConsole] = useState(false);
+
+            // 코인 상태 변경 시 로컬 저장소에 저장
+            useEffect(() => {
+                saveToStorage(STORAGE_KEYS.coins, coins);
+            }, [coins]);
+
+            // 연습 통계 상태 변경 시 로컬 저장소에 저장
+            useEffect(() => {
+                saveToStorage(STORAGE_KEYS.practiceStats, practiceStats);
+            }, [practiceStats]);
+
+            // 스킬 상태 변경 시 로컬 저장소에 저장
+            useEffect(() => {
+                saveToStorage(STORAGE_KEYS.skills, skills);
+            }, [skills]);
+
+            // 최고 기록 상태 변경 시 로컬 저장소에 저장
+            useEffect(() => {
+                saveToStorage(STORAGE_KEYS.bestRecord, bestRecord);
+            }, [bestRecord]);
+
+            // Firebase 최고 기록 로드
+            const loadBestRecord = useCallback(async () => {
+                if (!firebase || !user) return;
+
+                try {
+                    const docRef = firebase.doc(firebase.firestore, `artifacts/${firebase.appId}/users/${user.uid}/game_records/best_score`);
+                    const docSnap = await firebase.getDoc(docRef);
+                    
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        const cloudRecord = { 
+                            level: data.level || 0, 
+                            score: data.score || 0 
+                        };
+                        
+                        // 클라우드와 로컬 기록 중 더 높은 것 사용
+                        setBestRecord(prev => {
+                            const finalRecord = {
+                                level: Math.max(prev.level, cloudRecord.level),
+                                score: Math.max(prev.score, cloudRecord.score)
+                            };
+                            
+                            return finalRecord;
+                        });
+                    }
+                } catch (error) {
+                    console.error('기록 로드 실패:', error);
+                }
+            }, [firebase, user]);
+
+            // 기록 저장 (로컬 + 클라우드)
+            const saveBestRecord = useCallback(async (level, score) => {
+                const newLevel = Math.max(level, bestRecord.level);
+                const newScore = Math.max(score, bestRecord.score);
+                
+                if (newLevel > bestRecord.level || newScore > bestRecord.score) {
+                    const newRecord = { level: newLevel, score: newScore };
+                    
+                    // Firebase에 저장
+                    if (firebase && user) {
+                        try {
+                            const docRef = firebase.doc(firebase.firestore, `artifacts/${firebase.appId}/users/${user.uid}/game_records/best_score`);
+                            await firebase.setDoc(docRef, {
+                                level: newLevel,
+                                score: newScore,
+                                timestamp: new Date()
+                            });
+                        } catch (error) {
+                            console.error('클라우드 저장 실패:', error);
+                        }
+                    }
+                    
+                    setBestRecord(newRecord);
+                }
+            }, [firebase, user, bestRecord]);
+
+            // 기록 리셋
+            const resetRecord = useCallback(async () => {
+                const resetRecord = { level: 0, score: 0 };
+                
+                // Firebase 리셋
+                if (firebase && user) {
+                    try {
+                        const docRef = firebase.doc(firebase.firestore, `artifacts/${firebase.appId}/users/${user.uid}/game_records/best_score`);
+                        await firebase.setDoc(docRef, {
+                            level: 0,
+                            score: 0,
+                            timestamp: new Date()
+                        });
+                    } catch (error) {
+                        console.error('클라우드 리셋 실패:', error);
+                    }
+                }
+                
+                setBestRecord(resetRecord);
+            }, [firebase, user]);
+
+            // 사용자 인증 후 데이터 로드
+            useEffect(() => {
+                if (isInitialized && user) {
+                    loadBestRecord();
+                }
+            }, [isInitialized, user, loadBestRecord]);
+
+            // 나눗셈 문제 생성
+            const generateProblem = useCallback(() => {
+                const divisor = Math.floor(Math.random() * 9) + 2;
+                const quotient = Math.floor(Math.random() * 20) + 1;
+                const remainder = Math.floor(Math.random() * (divisor - 1));
+                const dividend = divisor * quotient + remainder;
+                
+                setCurrentProblem({ dividend, divisor, quotient, remainder });
+                setUserAnswer('');
+            }, []);
+
+            // 답안 확인
+            const checkAnswer = useCallback(() => {
+                if (!currentProblem || !userAnswer.trim()) return;
+                
+                const parts = userAnswer.split(',').map(s => s.trim());
+                
+                // 나머지가 0인 경우 몫만 입력해도 정답 처리
+                if (currentProblem.remainder === 0) {
+                    if (parts.length === 1) {
+                        const quotientAnswer = parseInt(parts[0]);
+                        const isCorrect = quotientAnswer === currentProblem.quotient;
+                        handleAnswerResult(isCorrect);
+                        return;
+                    } else if (parts.length === 2) {
+                        const [quotientAnswer, remainderAnswer] = parts.map(s => parseInt(s));
+                        const isCorrect = quotientAnswer === currentProblem.quotient && 
+                                        (remainderAnswer === 0 || isNaN(remainderAnswer));
+                        handleAnswerResult(isCorrect);
+                        return;
+                    }
+                } else {
+                    // 나머지가 0이 아닌 경우 기존 로직
+                    if (parts.length !== 2) return;
+                    
+                    const [quotientAnswer, remainderAnswer] = parts.map(s => parseInt(s));
+                    const isCorrect = quotientAnswer === currentProblem.quotient && 
+                                    remainderAnswer === currentProblem.remainder;
+                    handleAnswerResult(isCorrect);
+                    return;
+                }
+            }, [currentProblem, userAnswer, practiceStats.streak, playSound, generateProblem]);
+
+            // 답안 결과 처리 함수
+            const handleAnswerResult = useCallback((isCorrect) => {
+                setPracticeStats(prev => ({
+                    totalProblems: prev.totalProblems + 1,
+                    correctAnswers: prev.correctAnswers + (isCorrect ? 1 : 0),
+                    streak: isCorrect ? prev.streak + 1 : 0
+                }));
+                
+                if (isCorrect) {
+                    playSound('correct');
+                    const baseCoins = 5;
+                    const bonusCoins = Math.floor(practiceStats.streak / 5) * 2;
+                    setCoins(prev => prev + baseCoins + bonusCoins);
+                    generateProblem();
+                } else {
+                    // 틀렸을 때 정답 표시
+                    setTimeout(() => {
+                        generateProblem();
+                    }, 2000);
+                }
+            }, [practiceStats.streak, playSound, generateProblem]);
+
+            // 스킬 구매
+            const buySkill = useCallback((skillName, price) => {
+                if (coins < price) return;
+                
+                setCoins(prev => prev - price);
+                setSkills(prev => {
+                    const newSkills = { ...prev };
+                    if (typeof prev[skillName] === 'number') {
+                        newSkills[skillName] = prev[skillName] + 1;
+                    } else {
+                        newSkills[skillName] = true;
+                    }
+                    return newSkills;
+                });
+            }, [coins]);
+
+            // 게임 시작
+            const startGame = useCallback(() => {
+                initializeAudio();
+                playBGM();
+                setGameState('playing');
+            }, [initializeAudio, playBGM]);
+
+            // 게임 결과 상태 추가
+            const [lastGameResult, setLastGameResult] = useState({ level: 0, score: 0 });
+
+            // 게임 종료
+            const handleGameEnd = useCallback((level, score) => {
+                stopBGM();
+                
+                // 이번 게임 결과 저장
+                setLastGameResult({ level, score });
+                
+                // 최고 기록 업데이트
+                setBestRecord(prev => {
+                    const newLevel = Math.max(level, prev.level);
+                    const newScore = Math.max(score, prev.score);
+                    
+                    // Firebase에 저장
+                    if (firebase && user && (newLevel > prev.level || newScore > prev.score)) {
+                        const docRef = firebase.doc(firebase.firestore, `artifacts/${firebase.appId}/users/${user.uid}/game_records/best_score`);
+                        firebase.setDoc(docRef, {
+                            level: newLevel,
+                            score: newScore,
+                            timestamp: new Date()
+                        }).catch(error => console.error('기록 저장 실패:', error));
+                    }
+                    
+                    return { level: newLevel, score: newScore };
+                });
+                
+                setGameState('gameOver');
+            }, [stopBGM, firebase, user]);
+
+            // 점수 업데이트
+            const handleScoreUpdate = useCallback((points) => {
+                // 점수는 게임 컴포넌트에서 관리
+            }, []);
+
+            // 코인 업데이트
+            const handleCoinsUpdate = useCallback((coinAmount) => {
+                setCoins(prev => prev + coinAmount);
+            }, []);
+
+            // 첫 문제 생성
+            useEffect(() => {
+                if (activeTab === 'practice' && !currentProblem) {
+                    generateProblem();
+                }
+            }, [activeTab, currentProblem, generateProblem]);
+
+            // 스킬 데이터
+            const skillsData = [
+                { key: 'speedBoots', name: '🚀 스피드 부츠', price: 25, desc: '+15% 이동 속도', stackable: true },
+                { key: 'slowField', name: '🌀 슬로우 필드', price: 30, desc: '메테오 낙하속도 -7% (누적, 최소 30%)', stackable: true },
+                { key: 'meteorSuppressor', name: '☂️ 메테오 억제기', price: 40, desc: '메테오 밀도 -9% (누적, 최소 10%)', stackable: true },
+                { key: 'gemAmplifier', name: '💎 보석 확률 증폭기', price: 30, desc: '+5% 보석 출현 확률', stackable: true },
+                { key: 'smallHitbox', name: '🎯 작은 히트박스', price: 50, desc: '피격 판정 40% 축소', stackable: false },
+                { key: 'gemMagnet', name: '🧲 보석 자석', price: 35, desc: '보석 자동 획득', stackable: false },
+                { key: 'gemScoreAmp', name: '💰 보석 점수 증폭', price: 60, desc: '보석 획득 점수 2배', stackable: false },
+                { key: 'extraLife', name: '💖 추가 생명', price: 40, desc: '+1 기본 생명', stackable: true }
+            ];
+
+            // 타이틀 계산 (10레벨까지만)
+            const getTitle = useCallback((level) => {
+                if (level >= 10) return '전설의 항해자 🏆';
+                if (level >= 9) return '우주 제독';
+                if (level >= 8) return '코스믹 챔피언';
+                if (level >= 7) return '성단 개척자';
+                if (level >= 6) return '은하 수호자';
+                if (level >= 5) return '궤도 비행사';
+                if (level >= 4) return '유성 회피자';
+                if (level >= 3) return '견습 조종사';
+                if (level >= 2) return '초보 비행사';
+                return '연습생';
+            }, []);
+
+            // 칭호 목록 (10레벨까지만)
+            const titleList = [
+                { level: 1, title: '연습생' },
+                { level: 2, title: '초보 비행사' },
+                { level: 3, title: '견습 조종사' },
+                { level: 4, title: '유성 회피자' },
+                { level: 5, title: '궤도 비행사' },
+                { level: 6, title: '은하 수호자' },
+                { level: 7, title: '성단 개척자' },
+                { level: 8, title: '코스믹 챔피언' },
+                { level: 9, title: '우주 제독' },
+                { level: 10, title: '전설의 항해자 🏆' }
+            ];
+
+            // 관리자 콘솔 접근 함수
+            const openAdminConsole = useCallback(() => {
+                // 인라인 모달로 비밀번호 입력 받기
+                const modalDiv = document.createElement('div');
+                modalDiv.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0, 0, 0, 0.8);
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    z-index: 10000;
+                `;
+                
+                const modalContent = document.createElement('div');
+                modalContent.style.cssText = `
+                    background: #1f2937;
+                    padding: 30px;
+                    border-radius: 10px;
+                    text-align: center;
+                    color: white;
+                    font-family: Arial, sans-serif;
+                `;
+                
+                modalContent.innerHTML = `
+                    <h3 style="margin-bottom: 20px; font-size: 20px;">관리자 콘솔 접근</h3>
+                    <input type="password" id="adminPassword" placeholder="비밀번호 입력" 
+                           style="padding: 10px; margin-bottom: 20px; border-radius: 5px; border: none; width: 200px; text-align: center; font-size: 16px; color: black;">
+                    <br>
+                    <button id="confirmBtn" style="background: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 5px; margin-right: 10px; cursor: pointer; font-size: 16px;">확인</button>
+                    <button id="cancelBtn" style="background: #6b7280; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">취소</button>
+                `;
+                
+                modalDiv.appendChild(modalContent);
+                document.body.appendChild(modalDiv);
+                
+                const passwordInput = document.getElementById('adminPassword');
+                const confirmBtn = document.getElementById('confirmBtn');
+                const cancelBtn = document.getElementById('cancelBtn');
+                
+                passwordInput.focus();
+                
+                const checkPassword = () => {
+                    const password = passwordInput.value;
+                    if (password === '1050') {
+                        setShowAdminConsole(true);
+                        document.body.removeChild(modalDiv);
+                    } else {
+                        passwordInput.value = '';
+                        passwordInput.placeholder = '잘못된 비밀번호입니다';
+                        passwordInput.style.background = '#fee2e2';
+                        setTimeout(() => {
+                            passwordInput.style.background = 'white';
+                            passwordInput.placeholder = '비밀번호 입력';
+                        }, 1000);
+                    }
+                };
+                
+                const closeModal = () => {
+                    document.body.removeChild(modalDiv);
+                };
+                
+                confirmBtn.addEventListener('click', checkPassword);
+                cancelBtn.addEventListener('click', closeModal);
+                passwordInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') checkPassword();
+                });
+                modalDiv.addEventListener('click', (e) => {
+                    if (e.target === modalDiv) closeModal();
+                });
+            }, []);
+
+            // 게임 설정 계산 함수
+            const getGameSettings = useCallback((level = 1) => {
+                // 메테오 설정 - 더 가파른 난이도 증가
+                const meteorFreqArray = [200, 160, 120, 90, 70, 55, 45, 38, 32, 28];
+                const meteorFreq = meteorFreqArray[Math.min(level - 1, meteorFreqArray.length - 1)];
+                
+                const densityArray = [1.2, 1.8, 2.5, 3.2, 4.0, 4.8, 5.6, 6.4, 7.2, 8.0];
+                const baseDensity = densityArray[Math.min(level - 1, densityArray.length - 1)];
+                const meteorDensity = Math.max(0.2, baseDensity - skills.meteorSuppressor * 0.09);
+                
+                const speedArray = [5.0, 8.5, 12.5, 17.0, 22.0, 27.5, 33.5, 40.0, 47.0, 55.0];
+                const baseSpeed = speedArray[Math.min(level - 1, speedArray.length - 1)];
+                const meteorSpeed = Math.max(1, baseSpeed * Math.max(0.3, 1 - skills.slowField * 0.07));
+                
+                // 플레이어 설정
+                const playerSpeed = 5 * (1 + skills.speedBoots * 0.15);
+                
+                // 아이템 설정
+                const gemChance = 0.3 + skills.gemAmplifier * 0.05;
+                const heartChance = 0.25;
+                const shieldChance = 0.35;
+                
+                // 히트박스 설정
+                const hitboxSize = skills.smallHitbox ? 18 : 30;
+                
+                return {
+                    meteor: {
+                        frequency: `${meteorFreq}ms`,
+                        density: `${(meteorDensity * 100).toFixed(1)}%`,
+                        speed: `${meteorSpeed.toFixed(2)} px/frame`,
+                        hitChance: `${((30 * 30) / (hitboxSize * hitboxSize) * 100).toFixed(1)}%`
+                    },
+                    player: {
+                        speed: `${playerSpeed.toFixed(2)} px/frame`,
+                        hitboxSize: `${hitboxSize}x${hitboxSize} px`
+                    },
+                    items: {
+                        gem: {
+                            frequency: '3000ms',
+                            chance: `${(gemChance * 100).toFixed(1)}%`,
+                            speed: '1.5 px/frame'
+                        },
+                        heart: {
+                            frequency: '8000ms',
+                            chance: `${(heartChance * 100).toFixed(1)}%`,
+                            speed: '1.2 px/frame'
+                        },
+                        shield: {
+                            frequency: '10000ms',
+                            chance: `${(shieldChance * 100).toFixed(1)}%`,
+                            speed: '1.3 px/frame'
+                        }
+                    }
+                };
+            }, [skills]);
+
+            // 모든 데이터 리셋 함수
+            const resetAllData = useCallback(() => {
+                // 상태 리셋
+                setCoins(0);
+                setPracticeStats({
+                    totalProblems: 0,
+                    correctAnswers: 0,
+                    streak: 0
+                });
+                setSkills({
+                    speedBoots: 0,
+                    slowField: 0,
+                    meteorSuppressor: 0,
+                    gemAmplifier: 0,
+                    smallHitbox: false,
+                    gemMagnet: false,
+                    gemScoreAmp: false,
+                    extraLife: 0
+                });
+                setBestRecord({ level: 0, score: 0 });
+                
+                // 로컬 저장소 리셋
+                Object.values(STORAGE_KEYS).forEach(key => {
+                    localStorage.removeItem(key);
+                });
+                
+                // Firebase 리셋
+                if (firebase && user) {
+                    try {
+                        const docRef = firebase.doc(firebase.firestore, `artifacts/${firebase.appId}/users/${user.uid}/game_records/best_score`);
+                        firebase.setDoc(docRef, {
+                            level: 0,
+                            score: 0,
+                            timestamp: new Date()
+                        }).catch(error => console.error('클라우드 리셋 실패:', error));
+                    } catch (error) {
+                        console.error('클라우드 리셋 실패:', error);
+                    }
+                }
+            }, [firebase, user]);
+
+            if (!isInitialized) {
+                return (
+                    <div className="min-h-full bg-gradient-to-b from-purple-900 to-blue-900 text-white flex items-center justify-center">
+                        <div className="text-center">
+                            <div className="text-4xl mb-4">🚀</div>
+                            <div className="text-xl">Division Quest 로딩 중...</div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // 관리자 콘솔 화면
+            if (showAdminConsole) {
+                const currentSettings = getGameSettings(1);
+                const level5Settings = getGameSettings(5);
+                const level10Settings = getGameSettings(10);
+
+                return (
+                    <div className="min-h-full bg-gradient-to-b from-gray-900 to-black text-white">
+                        <div className="container mx-auto px-4 py-6 max-w-6xl">
+                            <div className="text-center mb-6">
+                                <h1 className="text-4xl font-bold mb-2">🔧 관리자 콘솔</h1>
+                                <p className="text-gray-300">게임 설정 및 밸런스 정보</p>
+                            </div>
+
+                            <div className="grid gap-6 mb-6">
+                                {/* 레벨별 설정 비교 */}
+                                <div className="bg-black bg-opacity-50 rounded-lg p-6">
+                                    <h2 className="text-2xl font-bold mb-4 text-center">📊 레벨별 게임 설정</h2>
+                                    
+                                    <div className="grid md:grid-cols-3 gap-4">
+                                        {[
+                                            { level: 1, settings: currentSettings, title: '레벨 1 (시작)' },
+                                            { level: 5, settings: level5Settings, title: '레벨 5 (중반)' },
+                                            { level: 10, settings: level10Settings, title: '레벨 10 (후반)' }
+                                        ].map(({ level, settings, title }) => (
+                                            <div key={level} className="bg-gray-800 rounded-lg p-4">
+                                                <h3 className="text-lg font-bold mb-3 text-center text-yellow-400">{title}</h3>
+                                                
+                                                {/* 메테오 설정 */}
+                                                <div className="mb-4">
+                                                    <h4 className="font-bold text-red-400 mb-2">☄️ 메테오</h4>
+                                                    <div className="text-sm space-y-1">
+                                                        <div>생성 빈도: <span className="text-yellow-300">{settings.meteor.frequency}</span></div>
+                                                        <div>생성 확률: <span className="text-yellow-300">{settings.meteor.density}</span></div>
+                                                        <div>낙하 속도: <span className="text-yellow-300">{settings.meteor.speed}</span></div>
+                                                        <div>피격 확률: <span className="text-yellow-300">{settings.meteor.hitChance}</span></div>
+                                                    </div>
+                                                </div>
+
+                                                {/* 플레이어 설정 */}
+                                                <div className="mb-4">
+                                                    <h4 className="font-bold text-blue-400 mb-2">🚀 플레이어</h4>
+                                                    <div className="text-sm space-y-1">
+                                                        <div>이동 속도: <span className="text-yellow-300">{settings.player.speed}</span></div>
+                                                        <div>히트박스: <span className="text-yellow-300">{settings.player.hitboxSize}</span></div>
+                                                    </div>
+                                                </div>
+
+                                                {/* 아이템 설정 */}
+                                                <div>
+                                                    <h4 className="font-bold text-green-400 mb-2">🎁 아이템</h4>
+                                                    <div className="text-sm space-y-2">
+                                                        <div>
+                                                            <div className="font-semibold">💎 보석</div>
+                                                            <div>빈도: {settings.items.gem.frequency}</div>
+                                                            <div>확률: {settings.items.gem.chance}</div>
+                                                            <div>속도: {settings.items.gem.speed}</div>
+                                                        </div>
+                                                        <div>
+                                                            <div className="font-semibold">💖 하트</div>
+                                                            <div>빈도: {settings.items.heart.frequency}</div>
+                                                            <div>확률: {settings.items.heart.chance}</div>
+                                                            <div>속도: {settings.items.heart.speed}</div>
+                                                        </div>
+                                                        <div>
+                                                            <div className="font-semibold">🛡️ 실드</div>
+                                                            <div>빈도: {settings.items.shield.frequency}</div>
+                                                            <div>확률: {settings.items.shield.chance}</div>
+                                                            <div>속도: {settings.items.shield.speed}</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* 현재 스킬 효과 */}
+                                <div className="bg-black bg-opacity-50 rounded-lg p-6">
+                                    <h2 className="text-2xl font-bold mb-4 text-center">⚡ 현재 적용된 스킬 효과</h2>
+                                    
+                                    <div className="grid md:grid-cols-2 gap-4">
+                                        <div className="bg-gray-800 rounded-lg p-4">
+                                            <h3 className="text-lg font-bold mb-3 text-purple-400">이동 & 방어 스킬</h3>
+                                            <div className="space-y-2 text-sm">
+                                                <div>🚀 스피드 부츠: <span className="text-yellow-300">레벨 {skills.speedBoots} (+{(skills.speedBoots * 15).toFixed(0)}% 속도)</span></div>
+                                                <div>🎯 작은 히트박스: <span className="text-yellow-300">{skills.smallHitbox ? '활성화 (40% 축소)' : '비활성화'}</span></div>
+                                                <div>💖 추가 생명: <span className="text-yellow-300">+{skills.extraLife}개</span></div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="bg-gray-800 rounded-lg p-4">
+                                            <h3 className="text-lg font-bold mb-3 text-orange-400">메테오 억제 스킬</h3>
+                                            <div className="space-y-2 text-sm">
+                                                <div>🌀 슬로우 필드: <span className="text-yellow-300">레벨 {skills.slowField} (-{(skills.slowField * 7).toFixed(0)}% 속도)</span></div>
+                                                <div>☂️ 메테오 억제기: <span className="text-yellow-300">레벨 {skills.meteorSuppressor} (-{(skills.meteorSuppressor * 9).toFixed(0)}% 밀도)</span></div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="bg-gray-800 rounded-lg p-4">
+                                            <h3 className="text-lg font-bold mb-3 text-green-400">보석 관련 스킬</h3>
+                                            <div className="space-y-2 text-sm">
+                                                <div>💎 보석 확률 증폭기: <span className="text-yellow-300">레벨 {skills.gemAmplifier} (+{(skills.gemAmplifier * 5).toFixed(0)}% 확률)</span></div>
+                                                <div>🧲 보석 자석: <span className="text-yellow-300">{skills.gemMagnet ? '활성화' : '비활성화'}</span></div>
+                                                <div>💰 보석 점수 증폭: <span className="text-yellow-300">{skills.gemScoreAmp ? '활성화 (2배)' : '비활성화'}</span></div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="bg-gray-800 rounded-lg p-4">
+                                            <h3 className="text-lg font-bold mb-3 text-cyan-400">게임 정보</h3>
+                                            <div className="space-y-2 text-sm">
+                                                <div>현재 코인: <span className="text-yellow-300">{coins}개</span></div>
+                                                <div>최고 레벨: <span className="text-yellow-300">{bestRecord.level}</span></div>
+                                                <div>최고 점수: <span className="text-yellow-300">{bestRecord.score}점</span></div>
+                                                <div>연습 정답률: <span className="text-yellow-300">{practiceStats.totalProblems > 0 ? Math.round((practiceStats.correctAnswers / practiceStats.totalProblems) * 100) : 0}%</span></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* 게임 밸런스 공식 */}
+                                <div className="bg-black bg-opacity-50 rounded-lg p-6">
+                                    <h2 className="text-2xl font-bold mb-4 text-center">📐 게임 밸런스 공식</h2>
+                                    
+                                    <div className="grid md:grid-cols-2 gap-4 text-sm">
+                                        <div className="bg-gray-800 rounded-lg p-4">
+                                            <h3 className="font-bold text-red-400 mb-2">메테오 공식</h3>
+                                            <div className="space-y-1 font-mono text-xs">
+                                                <div>생성빈도 = 레벨1~10: 배열[200~28]ms, 레벨11+: max(5, 28-추가레벨×2)ms</div>
+                                                <div>생성확률 = 레벨1~10: 배열[1.2~8.0], 레벨11+: min(15.0, 8.0+추가레벨×0.5) - 억제기×0.09</div>
+                                                <div>낙하속도 = 레벨1~10: 배열[5.0~55.0], 레벨11+: min(100.0, 55.0+추가레벨×3.0) × max(0.3, 1-슬로우×0.07)</div>
+                                                <div>피격확률 = (30×30) / (히트박스크기²) × 100%</div>
+                                                <div>동시생성 = 레벨2~8: 2~8개, 레벨9~12: 9~12개, 레벨13+: 최대15개, 레벨15+: 최대20개</div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="bg-gray-800 rounded-lg p-4">
+                                            <h3 className="font-bold text-blue-400 mb-2">플레이어 공식</h3>
+                                            <div className="space-y-1 font-mono text-xs">
+                                                <div>이동속도 = 5 × (1 + 스피드부츠레벨 × 0.15)</div>
+                                                <div>히트박스 = 작은히트박스 ? 18 : 30</div>
+                                                <div>기본생명 = 2 + 추가생명레벨</div>
+                                                <div>무적시간 = 피격후 1초, 실드 4초</div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="bg-gray-800 rounded-lg p-4">
+                                            <h3 className="font-bold text-green-400 mb-2">아이템 공식</h3>
+                                            <div className="space-y-1 font-mono text-xs">
+                                                <div>보석확률 = 0.3 + 증폭기레벨 × 0.05</div>
+                                                <div>하트확률 = 0.25 (고정)</div>
+                                                <div>실드확률 = 0.35 (고정)</div>
+                                                <div>자석범위 = 80px (보석자석 보유시)</div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="bg-gray-800 rounded-lg p-4">
+                                            <h3 className="font-bold text-yellow-400 mb-2">점수 공식</h3>
+                                            <div className="space-y-1 font-mono text-xs">
+                                                <div>생존점수 = 1점/초</div>
+                                                <div>보석점수 = 점수증폭 ? 200 : 100</div>
+                                                <div>보석코인 = 점수증폭 ? 4 : 2</div>
+                                                <div>연습코인 = 5 + floor(연속정답/5) × 2</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="text-center">
+                                <button
+                                    onClick={() => setShowAdminConsole(false)}
+                                    className="bg-blue-600 hover:bg-blue-700 px-8 py-3 rounded-lg font-bold text-lg transition-colors"
+                                >
+                                    ← 메인 메뉴로 돌아가기
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-full bg-gradient-to-b from-purple-900 to-blue-900 text-white">
+                    <div className="container mx-auto px-4 py-6 max-w-4xl">
+                        {/* 헤더 */}
+                        <div className="text-center mb-6">
+                            <h1 className="text-4xl font-bold mb-2">Division Quest ⚔️</h1>
+                            <div className="flex justify-center items-center gap-4 text-lg">
+                                <span>💰 {coins}</span>
+                                <span>🏆 {getTitle(bestRecord.level)}</span>
+                            </div>
+                            <div className="mt-2 flex justify-center gap-2">
+                                <button
+                                    onClick={() => {
+                                        if (window.confirm('정말로 모든 데이터를 리셋하시겠습니까? (코인, 스킬, 연습 기록, 게임 기록 모두 삭제됩니다)')) {
+                                            resetAllData();
+                                        }
+                                    }}
+                                    className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm transition-colors"
+                                >
+                                    전체 데이터 리셋
+                                </button>
+                                <button
+                                    onClick={openAdminConsole}
+                                    className="bg-gray-600 hover:bg-gray-700 px-3 py-1 rounded text-sm transition-colors"
+                                >
+                                    관리자 콘솔
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* 탭 네비게이션 */}
+                        <div className="flex justify-center mb-6">
+                            <div className="bg-black bg-opacity-30 rounded-lg p-1 flex">
+                                {[
+                                    { key: 'practice', label: '연습', icon: '📚' },
+                                    { key: 'shop', label: '스킬 상점', icon: '🛒' },
+                                    { key: 'game', label: '미니게임', icon: '🎮' }
+                                ].map(tab => (
+                                    <button
+                                        key={tab.key}
+                                        onClick={() => {
+                                            setActiveTab(tab.key);
+                                            initializeAudio();
+                                        }}
+                                        className={`px-6 py-3 rounded-md transition-all ${
+                                            activeTab === tab.key 
+                                                ? 'bg-blue-600 text-white' 
+                                                : 'text-gray-300 hover:text-white hover:bg-gray-700'
+                                        }`}
+                                    >
+                                        {tab.icon} {tab.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* 연습 탭 */}
+                        {activeTab === 'practice' && (
+                            <div className="bg-black bg-opacity-30 rounded-lg p-6">
+                                <h2 className="text-2xl font-bold mb-4 text-center">나눗셈 연습</h2>
+                                
+                                {/* 통계 */}
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                    <div className="bg-blue-600 rounded-lg p-3 text-center">
+                                        <div className="text-2xl font-bold">{practiceStats.totalProblems}</div>
+                                        <div className="text-sm">푼 문제</div>
+                                    </div>
+                                    <div className="bg-green-600 rounded-lg p-3 text-center">
+                                        <div className="text-2xl font-bold">{practiceStats.correctAnswers}</div>
+                                        <div className="text-sm">정답 수</div>
+                                    </div>
+                                    <div className="bg-yellow-600 rounded-lg p-3 text-center">
+                                        <div className="text-2xl font-bold">
+                                            {practiceStats.totalProblems > 0 
+                                                ? Math.round((practiceStats.correctAnswers / practiceStats.totalProblems) * 100)
+                                                : 0}%
+                                        </div>
+                                        <div className="text-sm">정답률</div>
+                                    </div>
+                                    <div className="bg-purple-600 rounded-lg p-3 text-center">
+                                        <div className="text-2xl font-bold">{practiceStats.streak}</div>
+                                        <div className="text-sm">연속 정답</div>
+                                    </div>
+                                </div>
+
+                                {/* 문제 */}
+                                {currentProblem && (
+                                    <div className="text-center mb-6">
+                                        <div className="text-3xl mb-4">
+                                            {currentProblem.dividend} ÷ {currentProblem.divisor} = ?
+                                        </div>
+                                        <div className="mb-4 flex justify-center items-center gap-4">
+                                            <div className="flex flex-col items-center">
+                                                <label className="text-sm text-gray-300 mb-1">몫</label>
+                                                <input
+                                                    type="number"
+                                                    value={userAnswer.split(',')[0] || ''}
+                                                    onChange={(e) => {
+                                                        const quotient = e.target.value;
+                                                        const remainder = userAnswer.split(',')[1] || '';
+                                                        setUserAnswer(`${quotient},${remainder}`);
+                                                    }}
+                                                    placeholder="0"
+                                                    className="px-4 py-2 rounded-lg bg-gray-800 text-white text-center text-lg w-20"
+                                                    onKeyPress={(e) => e.key === 'Enter' && checkAnswer()}
+                                                />
+                                            </div>
+                                            <div className="text-2xl">나머지</div>
+                                            <div className="flex flex-col items-center">
+                                                <label className="text-sm text-gray-300 mb-1">나머지</label>
+                                                <input
+                                                    type="number"
+                                                    value={userAnswer.split(',')[1] || ''}
+                                                    onChange={(e) => {
+                                                        const quotient = userAnswer.split(',')[0] || '';
+                                                        const remainder = e.target.value;
+                                                        setUserAnswer(`${quotient},${remainder}`);
+                                                    }}
+                                                    placeholder="0"
+                                                    className="px-4 py-2 rounded-lg bg-gray-800 text-white text-center text-lg w-20"
+                                                    onKeyPress={(e) => e.key === 'Enter' && checkAnswer()}
+                                                />
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={checkAnswer}
+                                            className="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg font-bold transition-colors"
+                                        >
+                                            확인
+                                        </button>
+                                        <div className="text-sm text-gray-300 mt-2">
+                                            몫과 나머지를 각각 입력하세요
+                                        </div>
+                                        {practiceStats.streak >= 5 && (
+                                            <div className="text-yellow-400 mt-2">
+                                                🔥 {practiceStats.streak}연속 정답! 보너스 코인 획득!
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* 스킬 상점 탭 */}
+                        {activeTab === 'shop' && (
+                            <div className="bg-black bg-opacity-30 rounded-lg p-6">
+                                <h2 className="text-2xl font-bold mb-4 text-center">스킬 상점</h2>
+                                <div className="grid gap-4">
+                                    {skillsData.map(skill => {
+                                        const currentLevel = skills[skill.key];
+                                        const canBuy = coins >= skill.price && (skill.stackable || !currentLevel);
+                                        
+                                        return (
+                                            <div key={skill.key} className="bg-gray-800 rounded-lg p-4 flex justify-between items-center">
+                                                <div>
+                                                    <div className="font-bold">{skill.name}</div>
+                                                    <div className="text-sm text-gray-300">{skill.desc}</div>
+                                                    {skill.stackable && (
+                                                        <div className="text-sm text-yellow-400">
+                                                            현재 레벨: {currentLevel}
+                                                        </div>
+                                                    )}
+                                                    {!skill.stackable && currentLevel && (
+                                                        <div className="text-sm text-green-400">보유 중</div>
+                                                    )}
+                                                </div>
+                                                <button
+                                                    onClick={() => buySkill(skill.key, skill.price)}
+                                                    disabled={!canBuy}
+                                                    className={`px-4 py-2 rounded-lg font-bold transition-colors ${
+                                                        canBuy
+                                                            ? 'bg-green-600 hover:bg-green-700 text-white'
+                                                            : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                                                    }`}
+                                                >
+                                                    💰 {skill.price}
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 미니게임 탭 */}
+                        {activeTab === 'game' && (
+                            <div className="flex gap-6">
+                                {/* 게임 영역 */}
+                                <div className="flex-1 bg-black bg-opacity-30 rounded-lg p-6">
+                                    <h2 className="text-2xl font-bold mb-4 text-center">메테오 게임</h2>
+                                    
+                                    {gameState === 'menu' && (
+                                        <div className="text-center">
+                                            <div className="mb-6">
+                                                <div className="text-lg mb-2">최고 기록</div>
+                                                <div className="text-2xl font-bold text-yellow-400">
+                                                    레벨 {bestRecord.level} | {bestRecord.score}점
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="mb-6">
+                                                <div className="text-lg mb-2">보유 스킬</div>
+                                                <div className="flex flex-wrap justify-center gap-2 mb-4">
+                                                    {skillsData.map(skill => {
+                                                        const level = skills[skill.key];
+                                                        if (level > 0 || level === true) {
+                                                            return (
+                                                                <div key={skill.key} className="bg-blue-600 px-3 py-2 rounded-lg text-sm">
+                                                                    <div className="font-bold">{skill.name}</div>
+                                                                    <div className="text-xs text-blue-200">
+                                                                        {typeof level === 'number' && level > 1 ? `레벨 ${level}` : '보유'}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        }
+                                                        return null;
+                                                    })}
+                                                    {skillsData.every(skill => !skills[skill.key] || skills[skill.key] === 0) && (
+                                                        <div className="text-gray-400 text-sm">보유한 스킬이 없습니다</div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            
+                                            <button
+                                                onClick={startGame}
+                                                className="bg-green-600 hover:bg-green-700 px-8 py-4 rounded-lg font-bold text-xl transition-colors"
+                                            >
+                                                🚀 게임 시작
+                                            </button>
+                                        </div>
+                                    )}
+                                    
+                                    {gameState === 'playing' && (
+                                        <MeteorGameHard 
+                                            skills={skills}
+                                            onGameEnd={handleGameEnd}
+                                            onScoreUpdate={handleScoreUpdate}
+                                            onCoinsUpdate={handleCoinsUpdate}
+                                        />
+                                    )}
+                                    
+                                    {gameState === 'gameOver' && (
+                                        <div className="text-center">
+                                            <div className="text-3xl font-bold mb-4 text-red-400">게임 오버!</div>
+                                            <div className="mb-6">
+                                                <div className="text-xl mb-2">이번 게임 결과</div>
+                                                <div className="text-2xl font-bold text-yellow-400 mb-2">
+                                                    레벨 {lastGameResult.level} | {lastGameResult.score}점
+                                                </div>
+                                                {(lastGameResult.level > bestRecord.level || lastGameResult.score > bestRecord.score) && (
+                                                    <div className="text-green-400 font-bold">🎉 신기록 달성!</div>
+                                                )}
+                                            </div>
+                                            <button
+                                                onClick={startGame}
+                                                className="bg-green-600 hover:bg-green-700 px-8 py-4 rounded-lg font-bold text-xl transition-colors"
+                                            >
+                                                🚀 다시 시작
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* 기록 & 칭호 패널 */}
+                                <div className="w-80 bg-black bg-opacity-30 rounded-lg p-4">
+                                    <h3 className="text-xl font-bold mb-4 text-center">기록 & 칭호 (로컬 저장)</h3>
+                                    
+                                    {/* 보유 스킬 */}
+                                    <div className="mb-6">
+                                        <h4 className="text-lg font-bold mb-3 text-center">보유 스킬</h4>
+                                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                                            {skillsData.map(skill => {
+                                                const level = skills[skill.key];
+                                                if (level > 0 || level === true) {
+                                                    return (
+                                                        <div key={skill.key} className="bg-blue-600 rounded-lg p-2">
+                                                            <div className="flex justify-between items-center">
+                                                                <div>
+                                                                    <div className="font-bold text-sm">{skill.name}</div>
+                                                                    <div className="text-xs text-blue-200">{skill.desc}</div>
+                                                                </div>
+                                                                <div className="text-xs text-blue-200 ml-2">
+                                                                    {typeof level === 'number' && level > 1 ? `Lv.${level}` : '보유'}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                }
+                                                return null;
+                                            })}
+                                            {skillsData.every(skill => !skills[skill.key] || skills[skill.key] === 0) && (
+                                                <div className="text-gray-400 text-sm text-center py-4">보유한 스킬이 없습니다</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                    
+                                    {/* 현재 기록 */}
+                                    <div className="mb-6">
+                                        <div className="bg-gray-800 rounded-lg p-4 mb-4">
+                                            <div className="text-center">
+                                                <div className="text-lg font-bold text-yellow-400 mb-2">
+                                                    최고 레벨: {bestRecord.level}
+                                                </div>
+                                                <div className="text-lg font-bold text-green-400 mb-2">
+                                                    최고 점수: {bestRecord.score}
+                                                </div>
+                                                <div className="text-lg font-bold text-purple-400">
+                                                    칭호: {getTitle(bestRecord.level)}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* 칭호 목록 */}
+                                    <div className="mb-4">
+                                        <h4 className="text-lg font-bold mb-3 text-center">칭호 목록</h4>
+                                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                                            {titleList.map(item => (
+                                                <div 
+                                                    key={item.level} 
+                                                    className={`p-2 rounded text-sm ${
+                                                        bestRecord.level >= item.level 
+                                                            ? 'bg-green-600 text-white' 
+                                                            : 'bg-gray-700 text-gray-400'
+                                                    }`}
+                                                >
+                                                    <span className="font-bold">Lv.{item.level}:</span> {item.title}
+                                                    {bestRecord.level >= item.level && (
+                                                        <span className="float-right">✓</span>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* 기록 리셋 버튼 */}
+                                    <div className="text-center">
+                                        <button
+                                            onClick={() => {
+                                                if (window.confirm('정말로 게임 기록을 리셋하시겠습니까?')) {
+                                                    resetRecord();
+                                                }
+                                            }}
+                                            className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-bold text-sm transition-colors"
+                                        >
+                                            게임 기록 리셋
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // Element SDK 초기화
+        if (window.elementSdk) {
+            const defaultConfig = {
+                background_color: "#1a1a2e",
+                primary_color: "#3b82f6",
+                text_color: "#ffffff",
+                accent_color: "#10b981"
+            };
+
+            window.elementSdk.init({
+                defaultConfig,
+                onConfigChange: async (config) => {
+                    const root = document.documentElement;
+                    root.style.setProperty('--bg-color', config.background_color || defaultConfig.background_color);
+                    root.style.setProperty('--primary-color', config.primary_color || defaultConfig.primary_color);
+                    root.style.setProperty('--text-color', config.text_color || defaultConfig.text_color);
+                    root.style.setProperty('--accent-color', config.accent_color || defaultConfig.accent_color);
+                },
+                mapToCapabilities: (config) => ({
+                    recolorables: [
+                        {
+                            get: () => config.background_color || defaultConfig.background_color,
+                            set: (value) => {
+                                config.background_color = value;
+                                window.elementSdk.setConfig({ background_color: value });
+                            }
+                        },
+                        {
+                            get: () => config.primary_color || defaultConfig.primary_color,
+                            set: (value) => {
+                                config.primary_color = value;
+                                window.elementSdk.setConfig({ primary_color: value });
+                            }
+                        },
+                        {
+                            get: () => config.text_color || defaultConfig.text_color,
+                            set: (value) => {
+                                config.text_color = value;
+                                window.elementSdk.setConfig({ text_color: value });
+                            }
+                        },
+                        {
+                            get: () => config.accent_color || defaultConfig.accent_color,
+                            set: (value) => {
+                                config.accent_color = value;
+                                window.elementSdk.setConfig({ accent_color: value });
+                            }
+                        }
+                    ],
+                    borderables: [],
+                    fontEditable: undefined,
+                    fontSizeable: undefined
+                }),
+                mapToEditPanelValues: (config) => new Map()
+            });
+        }
+
+        // 앱 렌더링
+        ReactDOM.render(<DivisionQuest />, document.getElementById('root'));
+    </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'998c93b8d11a3079',t:'MTc2MjE4MDMwNS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
