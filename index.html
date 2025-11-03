@@ -1077,7 +1077,7 @@
                 if (isCorrect) {
                     playSound('correct');
                     const baseCoins = 5;
-                    const bonusCoins = Math.floor(practiceStats.streak / 5) * 2;
+                    const bonusCoins = Math.floor(practiceStats.streak / 3) * 10; // 3연속마다 10코인 보너스
                     setCoins(prev => prev + baseCoins + bonusCoins);
                     generateProblem();
                 } else {
@@ -1106,6 +1106,9 @@
 
             // 게임 시작
             const startGame = useCallback(() => {
+                // 코인 10개 차감
+                setCoins(prev => prev - 10);
+                
                 initializeAudio();
                 playBGM();
                 setGameState('playing');
@@ -1697,9 +1700,9 @@
                                         <div className="text-sm text-gray-300 mt-2">
                                             몫과 나머지를 각각 입력하세요
                                         </div>
-                                        {practiceStats.streak >= 5 && (
+                                        {practiceStats.streak >= 3 && (
                                             <div className="text-yellow-400 mt-2">
-                                                🔥 {practiceStats.streak}연속 정답! 보너스 코인 획득!
+                                                🔥 {practiceStats.streak}연속 정답! 보너스 코인 +{Math.floor(practiceStats.streak / 3) * 10}!
                                             </div>
                                         )}
                                     </div>
@@ -1789,10 +1792,20 @@
                                             
                                             <button
                                                 onClick={startGame}
-                                                className="bg-green-600 hover:bg-green-700 px-8 py-4 rounded-lg font-bold text-xl transition-colors"
+                                                disabled={coins < 10}
+                                                className={`px-8 py-4 rounded-lg font-bold text-xl transition-colors ${
+                                                    coins >= 10 
+                                                        ? 'bg-green-600 hover:bg-green-700 text-white' 
+                                                        : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                                                }`}
                                             >
-                                                🚀 게임 시작
+                                                🚀 게임 시작 (💰 10)
                                             </button>
+                                            {coins < 10 && (
+                                                <div className="text-red-400 text-sm mt-2">
+                                                    코인이 부족합니다! 연습 모드에서 코인을 모아보세요.
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                     
@@ -1819,10 +1832,20 @@
                                             </div>
                                             <button
                                                 onClick={startGame}
-                                                className="bg-green-600 hover:bg-green-700 px-8 py-4 rounded-lg font-bold text-xl transition-colors"
+                                                disabled={coins < 10}
+                                                className={`px-8 py-4 rounded-lg font-bold text-xl transition-colors ${
+                                                    coins >= 10 
+                                                        ? 'bg-green-600 hover:bg-green-700 text-white' 
+                                                        : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                                                }`}
                                             >
-                                                🚀 다시 시작
+                                                🚀 다시 시작 (💰 10)
                                             </button>
+                                            {coins < 10 && (
+                                                <div className="text-red-400 text-sm mt-2">
+                                                    코인이 부족합니다! 연습 모드에서 코인을 모아보세요.
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -1980,5 +2003,5 @@
         // 앱 렌더링
         ReactDOM.render(<DivisionQuest />, document.getElementById('root'));
     </script>
- <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'998c93b8d11a3079',t:'MTc2MjE4MDMwNS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'998d0ce8f626c6fe',t:'MTc2MjE4NTI2OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
