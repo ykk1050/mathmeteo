@@ -1618,7 +1618,7 @@
                     <div className="container mx-auto px-4 py-6 max-w-4xl">
                         {/* 헤더 */}
                         <div className="text-center mb-6">
-                            <h1 className="text-4xl font-bold mb-2">Division Quest1.03 ⚔️</h1>
+                            <h1 className="text-4xl font-bold mb-2">Division Quest1.04 ⚔️</h1>
                             <div className="flex justify-center items-center gap-4 text-lg">
                                 <span>💰 {coins}</span>
                                 <span>🏆 {getTitle(bestRecord.level)}</span>
@@ -1700,6 +1700,8 @@
 
                                 
 
+                                
+
 
                                 
 
@@ -1753,9 +1755,17 @@
                                         <div className="text-sm text-gray-300 mt-2">
                                             몫과 나머지를 각각 입력하세요
                                         </div>
-                                        {practiceStats.streak >= 3 && (
+
+                                        {practiceStats.streak > 0 && practiceStats.streak % 3 !== 0 && (
+                                            <div className="text-green-400 mt-2">
+                                                💰 기본 코인 5개 획득! (다음 보너스까지 {3 - (practiceStats.streak % 3)}회)
+                                            </div>
+                                        )}
+
+                                        {/* 조건 2: 3의 배수일 때 (3, 6, 9회...) */}
+                                        {practiceStats.streak > 0 && practiceStats.streak % 3 === 0 && (
                                             <div className="text-yellow-400 mt-2">
-                                                🔥 {practiceStats.streak}연속 정답! 보너스 코인 +{Math.floor(practiceStats.streak / 3) * 10}!
+                                                🔥 {practiceStats.streak}연속 정답! 기본 5개 + **보너스 10개** 획득!
                                             </div>
                                         )}
                                     </div>
