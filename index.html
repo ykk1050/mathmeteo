@@ -26,6 +26,7 @@
   <div id="root"></div>
   <script type="text/babel">
         const { useState, useEffect, useRef, useCallback } = React;
+        const MAX_LEVEL = 10;
 
         // Firebase 초기화 및 관리 훅
         const useFirebase = () => {
@@ -1162,17 +1163,22 @@
                 }
             }, [activeTab, currentProblem, generateProblem]);
 
+            // 스택 가능한 스킬의 최대 레벨 상수를 정의합니다.
+            const MAX_STACKABLE_LEVEL = 10;
+
             // 스킬 데이터
-            const skillsData = [
-                { key: 'speedBoots', name: '🚀 스피드 부츠', price: 25, desc: '+15% 이동 속도', stackable: true },
-                { key: 'slowField', name: '🌀 슬로우 필드', price: 30, desc: '메테오 낙하속도 -7% (누적, 최소 30%)', stackable: true },
-                { key: 'meteorSuppressor', name: '☂️ 메테오 억제기', price: 40, desc: '메테오 밀도 -9% (누적, 최소 10%)', stackable: true },
-                { key: 'gemAmplifier', name: '💎 보석 확률 증폭기', price: 30, desc: '+5% 보석 출현 확률', stackable: true },
-                { key: 'smallHitbox', name: '🎯 작은 히트박스', price: 50, desc: '피격 판정 40% 축소', stackable: false },
-                { key: 'gemMagnet', name: '🧲 보석 자석', price: 35, desc: '보석 자동 획득', stackable: false },
-                { key: 'gemScoreAmp', name: '💰 보석 점수 증폭', price: 60, desc: '보석 획득 점수 2배', stackable: false },
-                { key: 'extraLife', name: '💖 추가 생명', price: 40, desc: '+1 기본 생명', stackable: true }
+            const skillsData = [ 
+                // speedBoots, slowField, meteorSuppressor, gemAmplifier, extraLife에 maxLevel 속성을 추가합니다.
+                { key: 'speedBoots', name: '🚀 스피드 부츠', price: 25, desc: '+15% 이동 속도', stackable: true, maxLevel: MAX_STACKABLE_LEVEL }, 
+                { key: 'slowField', name: '🌀 슬로우 필드', price: 30, desc: `메테오 낙하속도 -7% (누적, 최대 Lv.${MAX_STACKABLE_LEVEL})`, stackable: true, maxLevel: MAX_STACKABLE_LEVEL }, 
+                { key: 'meteorSuppressor', name: '☂️ 메테오 억제기', price: 40, desc: `메테오 밀도 -9% (누적, 최대 Lv.${MAX_STACKABLE_LEVEL})`, stackable: true, maxLevel: MAX_STACKABLE_LEVEL }, 
+                { key: 'gemAmplifier', name: '💎 보석 확률 증폭기', price: 30, desc: `+5% 보석 확률 (누적, 최대 Lv.${MAX_STACKABLE_LEVEL})`, stackable: true, maxLevel: MAX_STACKABLE_LEVEL }, 
+                { key: 'smallHitbox', name: '🤏 작은 히트박스', price: 50, desc: '피격 범위 대폭 감소', stackable: false }, 
+                { key: 'gemMagnet', name: '🧲 보석 자석', price: 60, desc: '주변 보석 자동 흡수', stackable: false }, 
+                { key: 'gemScoreAmp', name: '💰 보석 점수 증폭', price: 70, desc: '보석 획득 점수/코인 2배', stackable: false }, 
+                { key: 'extraLife', name: '❤️ 추가 생명', price: 100, desc: `기본 생명 +1 (최대 Lv.${MAX_STACKABLE_LEVEL})`, stackable: true, maxLevel: MAX_STACKABLE_LEVEL },
             ];
+
 
             // 타이틀 계산 (10레벨까지만)
             const getTitle = useCallback((level) => {
@@ -1716,8 +1722,27 @@
                                 <h2 className="text-2xl font-bold mb-4 text-center">스킬 상점</h2>
                                 <div className="grid gap-4">
                                     {skillsData.map(skill => {
-                                        const currentLevel = skills[skill.key];
-                                        const canBuy = coins >= skill.price && (skill.stackable || !currentLevel);
+                                        // 레벨이 없는 경우 0으로 처리
+                                        const currentLevel = skills[skill.key] || 0;
+                                        
+                                        // 스택 가능한 스킬이 MAX_LEVEL에 도달했는지 확인
+                                        const isMaxLevel = skill.stackable && currentLevel >= MAX_LEVEL; 
+
+                                        // 구매 가능 조건 업데이트:
+                                        // 코인이 충분하고 AND
+                                        // (스택 가능한데 최대 레벨이 아니거나) OR
+                                        // (스택 불가능한데 아직 구매하지 않은 경우)
+                                        const canBuy = coins >= skill.price && (
+                                            (skill.stackable && !isMaxLevel) || 
+                                            (!skill.stackable && !currentLevel)
+                                        );
+
+                                        // 스킬 구매 핸들러: canBuy가 true일 때만 구매 실행
+                                        const handleBuy = () => {
+                                            if (canBuy) {
+                                                buySkill(skill.key, skill.price);
+                                            }
+                                        };
                                         
                                         return (
                                             <div key={skill.key} className="bg-gray-800 rounded-lg p-4 flex justify-between items-center">
@@ -1725,16 +1750,19 @@
                                                     <div className="font-bold">{skill.name}</div>
                                                     <div className="text-sm text-gray-300">{skill.desc}</div>
                                                     {skill.stackable && (
-                                                        <div className="text-sm text-yellow-400">
-                                                            현재 레벨: {currentLevel}
+                                                        <div className="text-sm font-semibold">
+                                                            {/* 최대 레벨 도달 시 텍스트 및 색상 변경 */}
+                                                            <span className={isMaxLevel ? 'text-red-400' : 'text-yellow-400'}>
+                                                                {isMaxLevel ? `MAX (Lv.${currentLevel})` : `현재 레벨: ${currentLevel}`}
+                                                            </span>
                                                         </div>
                                                     )}
-                                                    {!skill.stackable && currentLevel && (
+                                                    {!skill.stackable && currentLevel > 0 && (
                                                         <div className="text-sm text-green-400">보유 중</div>
                                                     )}
                                                 </div>
                                                 <button
-                                                    onClick={() => buySkill(skill.key, skill.price)}
+                                                    onClick={handleBuy}
                                                     disabled={!canBuy}
                                                     className={`px-4 py-2 rounded-lg font-bold transition-colors ${
                                                         canBuy
@@ -1742,7 +1770,8 @@
                                                             : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                                                     }`}
                                                 >
-                                                    💰 {skill.price}
+                                                    {/* 버튼 텍스트 변경: 최대 레벨 또는 보유 중일 때 */}
+                                                    {isMaxLevel ? '최대 레벨' : !skill.stackable && currentLevel > 0 ? '보유 중' : `💰 ${skill.price}`}
                                                 </button>
                                             </div>
                                         );
