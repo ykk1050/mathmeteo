@@ -1618,7 +1618,7 @@
                     <div className="container mx-auto px-4 py-6 max-w-4xl">
                         {/* 헤더 */}
                         <div className="text-center mb-6">
-                            <h1 className="text-4xl font-bold mb-2">Division Quest1.05 ⚔️</h1>
+                            <h1 className="text-4xl font-bold mb-2">Division Quest1.03 ⚔️</h1>
                             <div className="flex justify-center items-center gap-4 text-lg">
                                 <span>💰 {coins}</span>
                                 <span>🏆 {getTitle(bestRecord.level)}</span>
@@ -1698,6 +1698,12 @@
                                     </div>
                                 </div>
 
+                                
+
+
+                                
+
+
 
                                 {/* 문제 */}
                                 {currentProblem && (
@@ -1747,23 +1753,15 @@
                                         <div className="text-sm text-gray-300 mt-2">
                                             몫과 나머지를 각각 입력하세요
                                         </div>
-                                        
-                                        {/* 👇 이 부분이 수정되었습니다. (기본 코인 문구 추가 및 보너스 조건 변경) 👇 */}
-                                        {practiceStats.streak > 0 && practiceStats.streak % 3 !== 0 && (
-                                            <div className="text-green-400 mt-2">
-                                                💰 기본 코인 5개 획득! 3연속 정답 시 보너스 코인 추가!
-                                            </div>
-                                        )}
-                                        {practiceStats.streak > 0 && practiceStats.streak % 3 === 0 && (
+                                        {practiceStats.streak >= 3 && (
                                             <div className="text-yellow-400 mt-2">
-                                                🔥 {practiceStats.streak}연속 정답! 기본 코인 5개 + **보너스 코인 10개** 획득!
+                                                🔥 {practiceStats.streak}연속 정답! 보너스 코인 +{Math.floor(practiceStats.streak / 3) * 10}!
                                             </div>
                                         )}
-                                        {/* 👆 수정 완료 👆 */}
-                                        
                                     </div>
                                 )}
-                
+                            </div>
+                        )}
 
                         {/* 스킬 상점 탭 */}
                         {activeTab === 'shop' && (
