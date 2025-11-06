@@ -1074,25 +1074,33 @@
 
             // 답안 결과 처리 함수
             const handleAnswerResult = useCallback((isCorrect) => {
+    
+                // isCorrect가 true일 경우, 새로운 연속 정답 횟수를 미리 계산합니다.
+                const currentStreak = practiceStats.streak;
+                const newStreak = isCorrect ? currentStreak + 1 : 0; // 다음 턴에 적용될 streak 값
+
                 setPracticeStats(prev => ({
                     totalProblems: prev.totalProblems + 1,
                     correctAnswers: prev.correctAnswers + (isCorrect ? 1 : 0),
-                    streak: isCorrect ? prev.streak + 1 : 0
+                    // 계산된 newStreak 값으로 업데이트
+                    streak: newStreak
                 }));
                 
                 if (isCorrect) {
                     playSound('correct');
+                    
                     const baseCoins = 5;
-                    const bonusCoins = Math.floor(practiceStats.streak / 3) * 10; // 3연속마다 10코인 보너스
+                    // ✅ 수정된 로직: 미리 계산한 newStreak을 사용하여 보너스 코인 계산
+                    // 3의 배수 연속 정답마다 10코인 보너스
+                    const bonusMultiplier = Math.floor(newStreak / 3);
+                    const bonusCoins = bonusMultiplier * 10; 
+
                     setCoins(prev => prev + baseCoins + bonusCoins);
                     generateProblem();
-                } else {
-                    // 틀렸을 때 정답 표시
-                    setTimeout(() => {
-                        generateProblem();
-                    }, 2000);
                 }
-            }, [practiceStats.streak, playSound, generateProblem]);
+            }, [playSound, setPracticeStats, setCoins, generateProblem, practiceStats.streak]); // ✅ 의존성 배열에 practiceStats.streak 유지
+
+
 
             // 스킬 구매
             const buySkill = useCallback((skillName, price) => {
@@ -1602,7 +1610,7 @@
                     <div className="container mx-auto px-4 py-6 max-w-4xl">
                         {/* 헤더 */}
                         <div className="text-center mb-6">
-                            <h1 className="text-4xl font-bold mb-2">Division Quest1.02 ⚔️</h1>
+                            <h1 className="text-4xl font-bold mb-2">Division Quest1.03 ⚔️</h1>
                             <div className="flex justify-center items-center gap-4 text-lg">
                                 <span>💰 {coins}</span>
                                 <span>🏆 {getTitle(bestRecord.level)}</span>
