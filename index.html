@@ -26,6 +26,8 @@
 
   <img id="spaceship-img" src="spaceship.png" style="display: none;" alt="우주선">
   <audio id="bgm-audio" src="background.mp3" loop preload="auto"></audio>
+  <img id="meteor-img" src="meteo.png" style="display: none;" alt="운석">
+
 
   
   <div id="root"></div>
@@ -235,6 +237,8 @@
 
             // 🚀 이미지 참조 선언 추가!
             const spaceshipImageRef = useRef(null);
+            const meteorImageRef = useRef(null);  // ✅ 추가!
+
             // 🎵 배경음악 참조 추가
             const bgmAudioRef = useRef(null);
 
@@ -257,6 +261,22 @@
                         console.error('❌ 우주선 이미지 로드 실패');
                     };
                 }
+                
+                // ✅ 메테오 이미지 로드 추가
+                const meteorImg = document.getElementById('meteor-img');
+                if (meteorImg && meteorImg.complete) {
+                    meteorImageRef.current = meteorImg;
+                    console.log('✅ 메테오 이미지 로드 성공!');
+                } else if (meteorImg) {
+                    meteorImg.onload = () => {
+                        meteorImageRef.current = meteorImg;
+                        console.log('✅ 메테오 이미지 로드 성공!');
+                    };
+                    meteorImg.onerror = () => {
+                        console.error('❌ 메테오 이미지 로드 실패');
+                    };
+                }
+
 
                 // 🎵 배경음악 로드
                 const bgm = document.getElementById('bgm-audio');
@@ -727,8 +747,14 @@
 
                 // 메테오 그리기 (이모지만 사용)
                 gameObjectsRef.current.meteors.forEach(meteor => {
-                    ctx.font = '30px Arial';
-                    ctx.fillText('☄️', meteor.x, meteor.y + 25);
+                    if (meteorImageRef.current) {
+                        // 이미지 사용 (40×40 크기로 조금 크게)
+                        ctx.drawImage(meteorImageRef.current, meteor.x - 5, meteor.y, 30, 30);
+                    } else {
+                        // 폴백: 이모지
+                        ctx.font = '30px Arial';
+                        ctx.fillText('☄️', meteor.x, meteor.y + 25);
+                    }
                 });
 
                 // 보석 그리기 (이모지만 사용)
@@ -1691,7 +1717,7 @@
                     <div className="container mx-auto px-4 py-6 max-w-4xl">
                         {/* 헤더 */}
                         <div className="text-center mb-6">
-                            <h1 className="text-4xl font-bold mb-2">Division Quest1.071 ⚔️</h1>
+                            <h1 className="text-4xl font-bold mb-2">Division Quest1.08 ⚔️</h1>
                             <div className="flex justify-center items-center gap-4 text-lg">
                                 <span>💰 {coins}</span>
                                 <span>🏆 {getTitle(bestRecord.level)}</span>
