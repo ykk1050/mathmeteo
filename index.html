@@ -25,6 +25,8 @@
  <body>
 
   <img id="spaceship-img" src="spaceship.png" style="display: none;" alt="우주선">
+  <audio id="bgm-audio" src="background.mp3" loop preload="auto"></audio>
+
   
   <div id="root"></div>
   <script type="text/babel">
@@ -233,6 +235,8 @@
 
             // 🚀 이미지 참조 선언 추가!
             const spaceshipImageRef = useRef(null);
+            // 🎵 배경음악 참조 추가
+            const bgmAudioRef = useRef(null);
 
             // 🚀 이미지 로드 추가
             useEffect(() => {
@@ -253,6 +257,25 @@
                         console.error('❌ 우주선 이미지 로드 실패');
                     };
                 }
+
+                // 🎵 배경음악 로드
+                const bgm = document.getElementById('bgm-audio');
+                if (bgm) {
+                    bgmAudioRef.current = bgm;
+                    bgm.volume = 0.3; // 볼륨 30% (0.0 ~ 1.0)
+                    console.log('✅ 배경음악 로드 성공!');
+                } else {
+                    console.error('❌ bgm-audio 요소를 찾을 수 없습니다');
+                }
+
+                // ✅✅✅ 여기에 6단계 추가! ✅✅✅
+                // 컴포넌트 언마운트 시 음악 정지
+                return () => {
+                    if (bgmAudioRef.current) {
+                        bgmAudioRef.current.pause();
+                        bgmAudioRef.current.currentTime = 0;
+                    }
+                };
             }, []);
 
 
@@ -299,6 +322,14 @@
             const startGame = useCallback(() => {
                 setIsRunning(true);
                 runningRef.current = true;
+
+                // 🎵 배경음악 재생
+                if (bgmAudioRef.current) {
+                    bgmAudioRef.current.currentTime = 0; // 처음부터 재생
+                    bgmAudioRef.current.play().catch(error => {
+                        console.log('배경음악 자동 재생 실패 (브라우저 정책):', error);
+                    });
+                }
                 
                 const initialStats = {
                     level: 1,
@@ -581,6 +612,12 @@
                                     setTimeout(() => {
                                         runningRef.current = false;
                                         setIsRunning(false);
+
+                                        // 🎵 배경음악 정지
+                                        if (bgmAudioRef.current) {
+                                            bgmAudioRef.current.pause();
+                                            bgmAudioRef.current.currentTime = 0; // 처음으로 되돌리기
+                                        }
                                         onGameEnd(prev.level, prev.score);
                                     }, 100);
                                 }
@@ -1654,7 +1691,7 @@
                     <div className="container mx-auto px-4 py-6 max-w-4xl">
                         {/* 헤더 */}
                         <div className="text-center mb-6">
-                            <h1 className="text-4xl font-bold mb-2">Division Quest1.065 ⚔️</h1>
+                            <h1 className="text-4xl font-bold mb-2">Division Quest1.07 ⚔️</h1>
                             <div className="flex justify-center items-center gap-4 text-lg">
                                 <span>💰 {coins}</span>
                                 <span>🏆 {getTitle(bestRecord.level)}</span>
