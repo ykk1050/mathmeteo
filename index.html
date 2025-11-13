@@ -484,7 +484,7 @@
                 });
 
                 // 플레이어 이동
-                const speed = 5 * (1 + skills.speedBoots * 0.15);
+                const speed = 5 * (1 + skills.speedBoots * 0.075);
                 if (keysRef.current.left && gameObjectsRef.current.player.x > 0) {
                     gameObjectsRef.current.player.x -= speed;
                 }
@@ -1289,7 +1289,7 @@
             // 스킬 데이터
             const skillsData = [ 
                 // speedBoots, slowField, meteorSuppressor, gemAmplifier, extraLife에 maxLevel 속성을 추가합니다.
-                { key: 'speedBoots', name: '🚀 스피드 부츠', price: 25, desc: '+15% 이동 속도', stackable: true, maxLevel: MAX_STACKABLE_LEVEL }, 
+                { key: 'speedBoots', name: '🚀 스피드 부츠', price: 25, desc: '+7.5% 이동 속도', stackable: true, maxLevel: MAX_STACKABLE_LEVEL }, 
                 { key: 'slowField', name: '🌀 슬로우 필드', price: 30, desc: `메테오 낙하속도 -7% (누적, 최대 Lv.${MAX_STACKABLE_LEVEL})`, stackable: true, maxLevel: MAX_STACKABLE_LEVEL }, 
                 { key: 'meteorSuppressor', name: '☂️ 메테오 억제기', price: 40, desc: `메테오 밀도 -9% (누적, 최대 Lv.${MAX_STACKABLE_LEVEL})`, stackable: true, maxLevel: MAX_STACKABLE_LEVEL }, 
                 { key: 'gemAmplifier', name: '💎 보석 확률 증폭기', price: 30, desc: `+5% 보석 확률 (누적, 최대 Lv.${MAX_STACKABLE_LEVEL})`, stackable: true, maxLevel: MAX_STACKABLE_LEVEL }, 
@@ -1717,7 +1717,7 @@
                     <div className="container mx-auto px-4 py-6 max-w-4xl">
                         {/* 헤더 */}
                         <div className="text-center mb-6">
-                            <h1 className="text-4xl font-bold mb-2">Division Quest1.08 ⚔️</h1>
+                            <h1 className="text-4xl font-bold mb-2">Division Quest1.09 ⚔️</h1>
                             <div className="flex justify-center items-center gap-4 text-lg">
                                 <span>💰 {coins}</span>
                                 <span>🏆 {getTitle(bestRecord.level)}</span>
