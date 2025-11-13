@@ -231,6 +231,9 @@
             const gameLoopRef = useRef(null);
             const keysRef = useRef({ left: false, right: false });
 
+            // 🚀 이미지 참조 선언 추가!
+            const spaceshipImageRef = useRef(null);
+
             // 🚀 이미지 로드 추가
             useEffect(() => {
                 // HTML에서 이미지 요소 가져오기
@@ -1651,7 +1654,7 @@
                     <div className="container mx-auto px-4 py-6 max-w-4xl">
                         {/* 헤더 */}
                         <div className="text-center mb-6">
-                            <h1 className="text-4xl font-bold mb-2">Division Quest1.062 ⚔️</h1>
+                            <h1 className="text-4xl font-bold mb-2">Division Quest1.063 ⚔️</h1>
                             <div className="flex justify-center items-center gap-4 text-lg">
                                 <span>💰 {coins}</span>
                                 <span>🏆 {getTitle(bestRecord.level)}</span>
