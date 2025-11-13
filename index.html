@@ -752,7 +752,7 @@
 
                 // 우주선 이미지 또는 이모지 그리기
                 if (spaceshipImageRef.current) {
-                    ctx.drawImage(spaceshipImageRef.current, player.x, player.y, 30, 30);
+                    ctx.drawImage(spaceshipImageRef.current, player.x, player.y - 5, 40, 40);
                 } else {
                     ctx.font = '32px Arial';
                     ctx.fillText('🚀', player.x, player.y + 25);
@@ -1654,7 +1654,7 @@
                     <div className="container mx-auto px-4 py-6 max-w-4xl">
                         {/* 헤더 */}
                         <div className="text-center mb-6">
-                            <h1 className="text-4xl font-bold mb-2">Division Quest1.063 ⚔️</h1>
+                            <h1 className="text-4xl font-bold mb-2">Division Quest1.064 ⚔️</h1>
                             <div className="flex justify-center items-center gap-4 text-lg">
                                 <span>💰 {coins}</span>
                                 <span>🏆 {getTitle(bestRecord.level)}</span>
