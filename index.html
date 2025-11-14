@@ -517,7 +517,7 @@
                     } else {
                         // 10레벨 이후 계속 증가 (최대 15.0까지)
                         const extraLevels = gameStats.level - densityArray.length;
-                        baseDensity = 8.0 + extraLevels * 0.5;
+                        baseDensity = 8.0 + extraLevels * 0.05;
                     }
                     const density = Math.max(0.2, baseDensity - skills.meteorSuppressor * 0.09);
                     
@@ -548,7 +548,7 @@
                             } else {
                                 // 10레벨 이후 계속 증가 (최대 100.0까지)
                                 const extraLevels = gameStats.level - speedArray.length;
-                                baseSpeed = 55.0 + extraLevels * 3.0;
+                                baseSpeed = 55.0 + extraLevels * 0.3;
                             }
                             const finalSpeed = Math.max(1, baseSpeed * Math.max(0.3, 1 - skills.slowField * 0.07));
                             
@@ -1717,7 +1717,7 @@
                     <div className="container mx-auto px-4 py-6 max-w-4xl">
                         {/* 헤더 */}
                         <div className="text-center mb-6">
-                            <h1 className="text-4xl font-bold mb-2">Division Quest1.1 ⚔️</h1>
+                            <h1 className="text-4xl font-bold mb-2">Division Quest1.11 ⚔️</h1>
                             <div className="flex justify-center items-center gap-4 text-lg">
                                 <span>💰 {coins}</span>
                                 <span>🏆 {getTitle(bestRecord.level)}</span>
