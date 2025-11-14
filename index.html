@@ -496,35 +496,50 @@
                 gameTimersRef.current.meteorTimer += deltaTime;
                 
                 // 더 가파른 난이도 증가 - 생성 빈도 (더 빠르게 생성)
-                const meteorFreqArray = [240, 180, 120, 90, 70, 55, 45, 38, 32, 28];
+                const meteorFreqArray = [240, 160, 100, 70, 50, 35, 25, 18, 12, 8];
                 let meteorFreq;
                 if (gameStats.level <= meteorFreqArray.length) {
                     meteorFreq = meteorFreqArray[gameStats.level - 1];
                 } else {
                     // 10레벨 이후 계속 감소 (최소 5ms까지)
                     const extraLevels = gameStats.level - meteorFreqArray.length;
-                    meteorFreq = Math.max(5, 28 - extraLevels * 2);
+                    meteorFreq = Math.max(5, 8 - extraLevels * 0.5);
                 }
                 
                 if (gameTimersRef.current.meteorTimer > meteorFreq) {
                     gameTimersRef.current.meteorTimer = 0;
                     
                     // 더 가파른 생성확률 증가 (레벨 1~10, 이후 계속 증가)
-                    const densityArray = [0.9, 1.8, 2.5, 3.2, 4.0, 4.8, 5.6, 6.4, 7.2, 8.0];
+                    const densityArray = [0.9, 2.0, 3.5, 5.5, 7.5, 10.0, 13.0, 16.5, 20.0, 25.0];
                     let baseDensity;
                     if (gameStats.level <= densityArray.length) {
                         baseDensity = densityArray[gameStats.level - 1];
                     } else {
                         // 10레벨 이후 계속 증가 (최대 15.0까지)
                         const extraLevels = gameStats.level - densityArray.length;
-                        baseDensity = 8.0 + extraLevels * 0.05;
+                        baseDensity = 25.0 + extraLevels * 2.5;
                     }
-                    const density = Math.max(0.2, baseDensity - skills.meteorSuppressor * 0.09);
+                    const density = Math.max(0.3, baseDensity - skills.meteorSuppressor * 0.09);
                     
                     if (Math.random() < density) {
                         let meteorCount = 1;
+
+                        // 훨씬 더 공격적인 동시생성 확률
+                        if (gameStats.level >= 2 && Math.random() < 0.7) meteorCount = 2;
+                        if (gameStats.level >= 3 && Math.random() < 0.8) meteorCount = 3;
+                        if (gameStats.level >= 4 && Math.random() < 0.75) meteorCount = 4;
+                        if (gameStats.level >= 5 && Math.random() < 0.7) meteorCount = 5;
+                        if (gameStats.level >= 6 && Math.random() < 0.65) meteorCount = 6;
+                        if (gameStats.level >= 7 && Math.random() < 0.6) meteorCount = 8;
+                        if (gameStats.level >= 8 && Math.random() < 0.55) meteorCount = 10;
+                        if (gameStats.level >= 9 && Math.random() < 0.5) meteorCount = 12;
+                        if (gameStats.level >= 10 && Math.random() < 0.5) meteorCount = 15;
+                        if (gameStats.level >= 12 && Math.random() < 0.45) meteorCount = 18;
+                        if (gameStats.level >= 15 && Math.random() < 0.4) meteorCount = 22;
+                        if (gameStats.level >= 18 && Math.random() < 0.35) meteorCount = 28;
+                        if (gameStats.level >= 20 && Math.random() < 0.3) meteorCount = Math.min(35, gameStats.level + 10);
                         
-                        // 더 공격적인 동시생성 확률 (10레벨 이후에도 계속 증가)
+                        /* // 더 공격적인 동시생성 확률 (10레벨 이후에도 계속 증가)
                         if (gameStats.level >= 2 && Math.random() < 0.5) meteorCount = 2;
                         if (gameStats.level >= 3 && Math.random() < 0.6) meteorCount = 3;
                         if (gameStats.level >= 4 && Math.random() < 0.5) meteorCount = 4;
@@ -537,18 +552,18 @@
                         if (gameStats.level >= 11 && Math.random() < 0.15) meteorCount = 11;
                         if (gameStats.level >= 12 && Math.random() < 0.14) meteorCount = 12;
                         if (gameStats.level >= 13 && Math.random() < 0.13) meteorCount = Math.min(15, 13);
-                        if (gameStats.level >= 15 && Math.random() < 0.12) meteorCount = Math.min(20, gameStats.level);
+                        if (gameStats.level >= 15 && Math.random() < 0.12) meteorCount = Math.min(20, gameStats.level); */
                         
                         for (let i = 0; i < meteorCount; i++) {
                             // 더 가파른 낙하속도 증가 (레벨 1~10, 이후 계속 증가)
-                            const speedArray = [4.0, 8.5, 12.5, 17.0, 22.0, 27.5, 33.5, 40.0, 47.0, 55.0];
+                            const speedArray = [4.0, 10.0, 18.0, 28.0, 40.0, 55.0, 72.0, 92.0, 115.0, 142.0];
                             let baseSpeed;
                             if (gameStats.level <= speedArray.length) {
                                 baseSpeed = speedArray[gameStats.level - 1];
                             } else {
                                 // 10레벨 이후 계속 증가 (최대 100.0까지)
                                 const extraLevels = gameStats.level - speedArray.length;
-                                baseSpeed = 55.0 + extraLevels * 0.3;
+                                baseSpeed = 142.0 + extraLevels * 15.0;
                             }
                             const finalSpeed = Math.max(1, baseSpeed * Math.max(0.3, 1 - skills.slowField * 0.07));
                             
@@ -1438,15 +1453,38 @@
             // 게임 설정 계산 함수
             const getGameSettings = useCallback((level = 1) => {
                 // 메테오 설정 - 더 가파른 난이도 증가
-                const meteorFreqArray = [200, 160, 120, 90, 70, 55, 45, 38, 32, 28];
-                const meteorFreq = meteorFreqArray[Math.min(level - 1, meteorFreqArray.length - 1)];
+                const meteorFreqArray = [240, 160, 100, 70, 50, 35, 25, 18, 12, 8];
+                let meteorFreq;
+                if (level <= meteorFreqArray.length) {
+                    meteorFreq = meteorFreqArray[level - 1];
+                } else {
+                    const extraLevels = level - meteorFreqArray.length;
+                    meteorFreq = Math.max(2, 8 - extraLevels * 0.5);
+                }
+                /* const meteorFreq = meteorFreqArray[Math.min(level - 1, meteorFreqArray.length - 1)]; */
                 
-                const densityArray = [1.2, 1.8, 2.5, 3.2, 4.0, 4.8, 5.6, 6.4, 7.2, 8.0];
-                const baseDensity = densityArray[Math.min(level - 1, densityArray.length - 1)];
+                const densityArray = [0.9, 2.0, 3.5, 5.5, 7.5, 10.0, 13.0, 16.5, 20.0, 25.0];
+                let baseDensity;
+                if (level <= densityArray.length) {
+                    baseDensity = densityArray[level - 1];
+                } else {
+                    const extraLevels = level - densityArray.length;
+                    baseDensity = 25.0 + extraLevels * 2.5;
+                }
+
+
+
                 const meteorDensity = Math.max(0.2, baseDensity - skills.meteorSuppressor * 0.09);
                 
-                const speedArray = [5.0, 8.5, 12.5, 17.0, 22.0, 27.5, 33.5, 40.0, 47.0, 55.0];
-                const baseSpeed = speedArray[Math.min(level - 1, speedArray.length - 1)];
+                const speedArray = [4.0, 10.0, 18.0, 28.0, 40.0, 55.0, 72.0, 92.0, 115.0, 142.0];
+                let baseSpeed;
+                if (level <= speedArray.length) {
+                    baseSpeed = speedArray[level - 1];
+                } else {
+                    const extraLevels = level - speedArray.length;
+                    baseSpeed = 142.0 + extraLevels * 15.0;
+                }
+
                 const meteorSpeed = Math.max(1, baseSpeed * Math.max(0.3, 1 - skills.slowField * 0.07));
                 
                 // 플레이어 설정
@@ -1690,11 +1728,15 @@
                                         <div className="bg-gray-800 rounded-lg p-4">
                                             <h3 className="font-bold text-red-400 mb-2">메테오 공식</h3>
                                             <div className="space-y-1 font-mono text-xs">
-                                                <div>생성빈도 = 레벨1~10: 배열[200~28]ms, 레벨11+: max(5, 28-추가레벨×2)ms</div>
-                                                <div>생성확률 = 레벨1~10: 배열[1.2~8.0], 레벨11+: min(15.0, 8.0+추가레벨×0.5) - 억제기×0.09</div>
-                                                <div>낙하속도 = 레벨1~10: 배열[5.0~55.0], 레벨11+: min(100.0, 55.0+추가레벨×3.0) × max(0.3, 1-슬로우×0.07)</div>
+                                                <div>생성빈도 = 레벨1~10: 배열[240~8]ms, 레벨11+: max(2, 8-추가레벨×0.5)ms</div>
+                                                <div>생성확률 = 레벨1~10: 배열[0.9~25.0], 레벨11+: 25.0+추가레벨×2.5 - 억제기×0.09</div>
+                                                <div>낙하속도 = 레벨1~10: 배열[4.0~142.0], 레벨11+: 142.0+추가레벨×15.0 × max(0.3, 1-슬로우×0.07)</div>
                                                 <div>피격확률 = (30×30) / (히트박스크기²) × 100%</div>
-                                                <div>동시생성 = 레벨2~8: 2~8개, 레벨9~12: 9~12개, 레벨13+: 최대15개, 레벨15+: 최대20개</div>
+                                                <div>동시생성 = 레벨2~10: 2~15개 (점진적 증가)</div>
+                                                <div>         레벨12+: 최대 18개</div>
+                                                <div>         레벨15+: 최대 22개</div>
+                                                <div>         레벨18+: 최대 28개</div>
+                                                <div>         레벨20+: 최대 35개 이상</div>
                                             </div>
                                         </div>
                                         
@@ -1749,7 +1791,7 @@
                     <div className="container mx-auto px-4 py-6 max-w-4xl">
                         {/* 헤더 */}
                         <div className="text-center mb-6">
-                            <h1 className="text-4xl font-bold mb-2">Division Quest1.131 ⚔️</h1>
+                            <h1 className="text-4xl font-bold mb-2">Division Quest1.14 ⚔️</h1>
                             <div className="flex justify-center items-center gap-4 text-lg">
                                 <span>💰 {coins}</span>
                                 <span>🏆 {getTitle(bestRecord.level)}</span>
