@@ -803,21 +803,21 @@
                     // 반투명 실드 배경
                     ctx.fillStyle = `rgba(0, 200, 255, ${0.3 + Math.sin(time * 2) * 0.1})`;
                     ctx.beginPath();
-                    ctx.arc(player.x + 17, player.y + 15, radius, 0, Math.PI * 2);
+                    ctx.arc(player.x + 18, player.y + 15, radius, 0, Math.PI * 2);
                     ctx.fill();
                     
                     // 실드 테두리 효과
                     ctx.strokeStyle = `rgba(100, 255, 255, ${0.8 + Math.sin(time * 3) * 0.2})`;
                     ctx.lineWidth = 3;
                     ctx.beginPath();
-                    ctx.arc(player.x + 17, player.y + 15, radius, 0, Math.PI * 2);
+                    ctx.arc(player.x + 18, player.y + 15, radius, 0, Math.PI * 2);
                     ctx.stroke();
                     
                     // 내부 실드 링
                     ctx.strokeStyle = `rgba(255, 255, 255, ${0.6 + Math.sin(time * 4) * 0.2})`;
                     ctx.lineWidth = 2;
                     ctx.beginPath();
-                    ctx.arc(player.x + 17, player.y + 15, radius - 10, 0, Math.PI * 2);
+                    ctx.arc(player.x + 18, player.y + 15, radius - 10, 0, Math.PI * 2);
                     ctx.stroke();
                     
                     // 실드 이모지 오버레이
@@ -1879,7 +1879,7 @@
                     <div className="container mx-auto px-4 py-6 max-w-4xl">
                         {/* 헤더 */}
                         <div className="text-center mb-6">
-                            <h1 className="text-4xl font-bold mb-2">Division Quest1.161 ⚔️</h1>
+                            <h1 className="text-4xl font-bold mb-2">Division Quest1.162 ⚔️</h1>
                             <div className="flex justify-center items-center gap-4 text-lg">
                                 <span>💰 {coins}</span>
                                 <span>🏆 {getTitle(bestRecord.level)}</span>
