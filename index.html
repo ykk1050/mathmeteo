@@ -496,7 +496,7 @@
                 gameTimersRef.current.meteorTimer += deltaTime;
                 
                 // 더 가파른 난이도 증가 - 생성 빈도 (더 빠르게 생성)
-                const meteorFreqArray = [240, 160, 100, 70, 50, 35, 25, 18, 12, 8];
+                const meteorFreqArray = [300, 160, 100, 70, 50, 35, 25, 18, 12, 8];
                 let meteorFreq;
                 if (gameStats.level <= meteorFreqArray.length) {
                     meteorFreq = meteorFreqArray[gameStats.level - 1];
@@ -510,7 +510,7 @@
                     gameTimersRef.current.meteorTimer = 0;
                     
                     // 더 가파른 생성확률 증가 (레벨 1~10, 이후 계속 증가)
-                    const densityArray = [0.9, 2.0, 3.5, 5.5, 7.5, 10.0, 13.0, 16.5, 20.0, 25.0];
+                    const densityArray = [0.7, 2.0, 3.5, 5.5, 7.5, 10.0, 13.0, 16.5, 20.0, 25.0];
                     let baseDensity;
                     if (gameStats.level <= densityArray.length) {
                         baseDensity = densityArray[gameStats.level - 1];
@@ -556,7 +556,7 @@
                         
                         for (let i = 0; i < meteorCount; i++) {
                             // 더 가파른 낙하속도 증가 (레벨 1~10, 이후 계속 증가)
-                            const speedArray = [4.0, 10.0, 18.0, 28.0, 40.0, 55.0, 72.0, 92.0, 115.0, 142.0];
+                            const speedArray = [3.0, 10.0, 18.0, 28.0, 40.0, 55.0, 72.0, 92.0, 115.0, 142.0];
                             let baseSpeed;
                             if (gameStats.level <= speedArray.length) {
                                 baseSpeed = speedArray[gameStats.level - 1];
@@ -1879,7 +1879,7 @@
                     <div className="container mx-auto px-4 py-6 max-w-4xl">
                         {/* 헤더 */}
                         <div className="text-center mb-6">
-                            <h1 className="text-4xl font-bold mb-2">Division Quest1.15 ⚔️</h1>
+                            <h1 className="text-4xl font-bold mb-2">Division Quest1.16 ⚔️</h1>
                             <div className="flex justify-center items-center gap-4 text-lg">
                                 <span>💰 {coins}</span>
                                 <span>🏆 {getTitle(bestRecord.level)}</span>
@@ -2107,12 +2107,12 @@
                                 
                                 {/* 사용자명 입력 */}
                                 <div className="mb-6 text-center">
-                                    <div className="mb-2 text-sm text-gray-300">랭킹 등록을 위한 사용자명</div>
+                                    <div className="mb-2 text-sm text-gray-300">랭킹 등록을 위한 닉네임-실제 이름 등 개인정보는 넣지 마세요.</div>
                                     <input
                                         type="text"
                                         value={username}
                                         onChange={(e) => setUsername(e.target.value)}
-                                        placeholder="사용자명 입력"
+                                        placeholder="닉네임 입력"
                                         maxLength={20}
                                         className="px-4 py-2 rounded-lg bg-gray-800 text-white text-center"
                                     />
