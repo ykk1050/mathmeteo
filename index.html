@@ -1082,7 +1082,8 @@
             const fetchRankings = useCallback(async (type = 'level') => {
                 setIsLoadingRankings(true);
                 try {
-                    const response = await fetch(`${RANKING_API_URL}?type=${type}`);
+            // 현재 입력된 username을 같이 보냄
+                    const response = await fetch(`${RANKING_API_URL}?type=${type}&username=${encodeURIComponent(username)}`); 
                     const data = await response.json();
                     setRankings(prev => ({ ...prev, [type]: data }));
                 } catch (error) {
@@ -1090,7 +1091,7 @@
                 } finally {
                     setIsLoadingRankings(false);
                 }
-            }, []);
+            }, [username]);
 
             // 랭킹 데이터 전송
             const submitRanking = useCallback(async (level, score) => {
@@ -1879,7 +1880,7 @@
                     <div className="container mx-auto px-4 py-6 max-w-4xl">
                         {/* 헤더 */}
                         <div className="text-center mb-6">
-                            <h1 className="text-4xl font-bold mb-2">Division Quest1.162 ⚔️</h1>
+                            <h1 className="text-4xl font-bold mb-2">Division Quest1.163 ⚔️</h1>
                             <div className="flex justify-center items-center gap-4 text-lg">
                                 <span>💰 {coins}</span>
                                 <span>🏆 {getTitle(bestRecord.level)}</span>
@@ -2156,13 +2157,45 @@
                                     </button>
                                 </div>
 
+                                {/* 👇👇👇 [추가] 내 순위 표시 박스 시작 👇👇👇 */}
+                                {rankings[rankingType]?.length > 0 && (() => {
+                                    // 내 데이터 찾기
+                                    const myData = rankings[rankingType].find(r => r.username === username);
+                                    if (myData) {
+                                        return (
+                                            <div className="bg-blue-900 border-2 border-blue-400 rounded-lg p-4 mb-4 shadow-lg transform hover:scale-[1.02] transition-transform">
+                                                <div className="text-center text-blue-200 text-sm mb-1">내 순위</div>
+                                                <div className="flex justify-between items-center">
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-2xl font-bold text-yellow-400">
+                                                            {myData.rank ? `${myData.rank}위` : '-'}
+                                                        </span>
+                                                        <span className="font-bold text-lg text-white">
+                                                            {myData.username} (나)
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <div className="text-xl font-bold text-white">
+                                                            {rankingType === 'level' && `Lv.${myData.level}`}
+                                                            {rankingType === 'problems' && `${myData.problems}문제`}
+                                                            {rankingType === 'score' && `${myData.score}점`}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+                                    return null;
+                                })()}
+                                {/* 👆👆👆 [추가] 내 순위 표시 박스 끝 👆👆👆 */}
+
                                 {/* 랭킹 목록 */}
                                 <div className="bg-gray-800 rounded-lg p-4 max-h-96 overflow-y-auto">
                                     {isLoadingRankings ? (
                                         <div className="text-center py-8 text-gray-400">로딩 중...</div>
                                     ) : rankings[rankingType]?.length > 0 ? (
                                         <div className="space-y-2">
-                                            {rankings[rankingType].map((entry, index) => (
+                                            {rankings[rankingType].slice(0, 100).map((entry, index) => (
                                                 <div
                                                     key={index}
                                                     className={`p-3 rounded-lg flex items-center justify-between ${
@@ -2180,10 +2213,11 @@
                                                             index === 2 ? 'text-orange-400' :
                                                             'text-gray-400'
                                                         }`}>
-                                                            {index === 0 ? '🥇' :
-                                                            index === 1 ? '🥈' :
-                                                            index === 2 ? '🥉' :
-                                                            `${index + 1}위`}
+                                                            {/* 순위 표시 로직 변경: entry.rank 사용 */}
+                                                            {entry.rank === 1 ? '🥇' :
+                                                            entry.rank === 2 ? '🥈' :
+                                                            entry.rank === 3 ? '🥉' :
+                                                            `${entry.rank}위`}
                                                         </div>
                                                         <div>
                                                             <div className="font-bold">{entry.username}</div>
